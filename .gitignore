@@ -1,0 +1,39 @@
+# Gitignore
+
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Android/Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+
+# Env/secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs/temp
+*.log
+tmp/
+temp/
