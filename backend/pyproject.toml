@@ -1,0 +1,38 @@
+[project]
+name = "sms-ingest-backend"
+version = "0.1.0"
+description = "FastAPI backend for encrypted SMS batch ingestion (v1)."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.139,<1.0",
+    "uvicorn[standard]>=0.50,<1.0",
+    "pydantic>=2.13,<3",
+    "pydantic-settings>=2.14,<3",
+    "psycopg[binary]>=3.3,<4",
+    "psycopg-pool>=3.3,<4",
+    "tink>=1.15,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1,<10",
+    "httpx>=0.28,<1",
+]
+
+[project.scripts]
+sms-ingest-admin = "cli.main:main"
+
+# Exact versions resolved and verified during scaffold (see README "Pinned versions").
+# The plan (backend-implementation-plan.md, "Open Implementation Details") asked to
+# confirm exact Tink/dependency versions at scaffold time; recorded in backend/README.md.
+
+[tool.pytest.ini_options]
+# Keep `app` and `cli` importable without installing the package.
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "integration: requires a reachable Postgres (skipped when DATABASE_URL is unset/unreachable)",
+]
+
+[tool.setuptools]
+packages = ["app", "cli"]
