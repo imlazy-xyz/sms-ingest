@@ -140,6 +140,11 @@ TOKEN_HASH_PEPPER=sms-ingest-token-pepper:latest \
 Notes:
 - The container listens on `$PORT` (Cloud Run injects it; the image defaults to
   `8080`). No port config needed beyond that.
+- `DATABASE_URL` must be the Supabase **session pooler** connection string
+  (dashboard: Connect → Session pooler, port 5432 via the pooler host) — not the
+  direct connection string (IPv6-only on Free tier) and not the transaction
+  pooler (port 6543, unreliable with the backend's auto-prepared statements).
+  See the private agent repo's ADR on database connection mode.
 - Generate keyset/pepper values with `sms-ingest-admin gen-keys` and store each
   in Secret Manager; never place them in this repo or in plain env vars.
 - Apply migrations once against the production database
