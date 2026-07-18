@@ -1,0 +1,19 @@
+# Keep the Cloud Build source upload small and free of local/dev artifacts.
+# gcloud builds submit only honors a .gcloudignore in the submitted directory
+# (it does not fall back to a parent .gitignore), so this mirrors .dockerignore.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
