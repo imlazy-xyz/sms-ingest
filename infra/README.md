@@ -86,6 +86,27 @@ cloud spend near `$0/month` for the bootstrap workload:
 - Minimal logging; **no paid log drains or paid observability**.
 - **No** load balancer or paid edge feature unless explicitly approved.
 
+## Supabase environment prep
+
+Run once against a new Supabase project (idempotent, re-runnable) via the
+Management API — no MCP and no DB password required:
+
+```bash
+export SUPABASE_ACCESS_TOKEN=...   # revocable Personal Access Token
+export SUPABASE_PROJECT_REF=...    # scopes changes to one project
+./infra/supabase-setup.sh
+```
+
+`supabase-setup.sh` closes the anon Data API (drops `public` from the exposed
+schemas), applies `backend/migrations/*.sql`, and enables row-level security
+plus a `RESTRICTIVE` deny-all policy on all public tables. The table-owner
+`postgres` role bypasses RLS, so the backend (which connects via `DATABASE_URL`)
+is unaffected; the deny-all only hard-blocks the anon/authenticated roles. The
+policy is `RESTRICTIVE` on purpose — AND-combined, so no future permissive policy
+can silently re-grant access. Do not "fix" these tables by adding permissive
+policies (Supabase's `rls_enabled_no_policy` linter advisory is expected here and
+is satisfied by the deny-all). Revoke the access token once prep is confirmed.
+
 ## Build & deploy (Cloud Run)
 
 Placeholders — replace `PROJECT_ID`, `REGION`, and the service/domain names.
