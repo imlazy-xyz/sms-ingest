@@ -190,8 +190,20 @@ email/Pub/Sub channel you monitor.
 ## Pre-release checklist
 
 - [ ] Confirm GoDaddy DNS + Cloud Run domain mapping resolve and serve TLS for
-      the configured API base URL.
-- [ ] All secrets in Secret Manager; none in the repo or plain env vars.
-- [ ] Migrations applied to the production database.
+      the configured API base URL. (Blocked: no domain owned/registered yet.)
+- [x] All secrets in Secret Manager; none in the repo or plain env vars.
+- [x] Migrations applied to the production database (via `infra/supabase-setup.sh`).
 - [ ] Budget alert active and scoped to the project.
-- [ ] `--min-instances=0` and request-based billing confirmed on the service.
+- [x] `--min-instances=0` and request-based billing confirmed on the service.
+
+Note: the Cloud Run runtime service account
+(`PROJECT_NUMBER-compute@developer.gserviceaccount.com`) needs the
+**Secret Manager Secret Accessor** role (`roles/secretmanager.secretAccessor`)
+on the project (or per-secret) before `--set-secrets` will work — the default
+`roles/editor` role does not include Secret Manager access. Grant it once:
+
+```bash
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
