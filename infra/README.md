@@ -28,6 +28,52 @@ Copy `backend/.env.example` to `backend/.env` and point `DATABASE_URL` at
 The backend image comes only from `backend/Dockerfile`; the local compose file
 above never builds the deployed image.
 
+## GCP project & gcloud CLI setup
+
+If `gcloud` isn't installed on the host, run it via the official Docker image
+instead of installing it locally.
+
+```bash
+docker volume create gcloud-sms-ingest-config
+docker pull google/cloud-sdk:slim
+```
+
+Auth login needs a browser and manual code entry, so run it yourself in an
+interactive terminal — do not proxy Google account login through an agent:
+
+```bash
+docker run --rm -it \
+  -v gcloud-sms-ingest-config:/root/.config \
+  google/cloud-sdk:slim gcloud auth login --no-launch-browser
+```
+
+For every later command (project creation, API enablement, secret creation,
+deploys), reuse the same volume without `-it`:
+
+```bash
+docker run --rm \
+  -v gcloud-sms-ingest-config:/root/.config \
+  google/cloud-sdk:slim gcloud <command>
+```
+
+Create the project (`PROJECT_ID` must be globally unique across all of GCP)
+and link a billing account:
+
+```bash
+gcloud projects create PROJECT_ID --name="sms-ingest"
+gcloud billing accounts list
+gcloud billing projects link PROJECT_ID --billing-account=BILLING_ACCOUNT_ID
+gcloud config set project PROJECT_ID
+gcloud config set run/region REGION
+```
+
+Enable the APIs the steps below need:
+
+```bash
+gcloud services enable run.googleapis.com secretmanager.googleapis.com \
+  artifactregistry.googleapis.com cloudbuild.googleapis.com
+```
+
 ## Frugal-mode guardrails (locked for v1)
 
 These are cost decisions locked in the private agent repo. Keep incremental
