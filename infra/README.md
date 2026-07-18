@@ -117,6 +117,9 @@ gcloud builds submit backend \
   --tag REGION-docker.pkg.dev/PROJECT_ID/sms-ingest/backend:latest
 
 # Deploy. Request-based billing + no minimum instances = frugal defaults.
+# --allow-unauthenticated is intentional: device requests carry the app's own
+# bearer token (backend/app/core/auth.py), not a Google-signed IAM ID token, so
+# Cloud Run-level IAM auth would just reject every real client.
 gcloud run deploy sms-ingest-backend \
   --image REGION-docker.pkg.dev/PROJECT_ID/sms-ingest/backend:latest \
   --region REGION \
@@ -126,7 +129,7 @@ gcloud run deploy sms-ingest-backend \
   --concurrency 40 \
   --memory 512Mi \
   --cpu 1 \
-  --no-allow-unauthenticated=false \
+  --allow-unauthenticated \
   --set-secrets \
       DATABASE_URL=sms-ingest-database-url:latest,\
 TINK_PRIVATE_KEYSET_JSON=sms-ingest-tink-private:latest,\
