@@ -79,6 +79,30 @@ gcloud secrets versions add SECRET_ID --data-file=-   # pipe the value in; never
 The Cloud Run service (Terraform-managed) reads these via `--set-secrets`-style
 `value_source` env refs at `latest`.
 
+## Admin CLI (device provisioning, retention, migrate)
+
+`sms-ingest-admin` (see `backend/README.md`) runs as a one-off local invocation,
+not on Cloud Run — export the six secret values above plus one more into your
+shell first:
+
+```bash
+export DATABASE_URL=...             # session pooler string, see decisions/0007
+export TINK_PRIVATE_KEYSET_JSON=...
+export TINK_PUBLIC_KEYSET_JSON=...
+export SERVER_KEY_ID=...
+export FIELD_ENCRYPTION_KEY=...
+export TOKEN_HASH_PEPPER=...
+export API_BASE_URL=...             # NOT a secret, not in Secret Manager — see
+                                     # projects/sms-ingest/links.md (private agent
+                                     # repo) for the current value
+
+sms-ingest-admin create-device --label "..."
+```
+
+`API_BASE_URL` is required here even though the running server treats it as
+optional (`app/config.py`) — `create-device`/`rotate-token` embed it in the QR
+payload, so provisioning without it is a `RuntimeError`, not a silent gap.
+
 ## Build & deploy the image
 
 Deploy an **immutable, digest-pinned** image — never `:latest`. Terraform owns

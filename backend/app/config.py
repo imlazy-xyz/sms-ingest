@@ -38,7 +38,11 @@ class Settings(BaseSettings):
     # Pepper (HMAC key) applied when hashing device bearer tokens.
     token_hash_pepper: str | None = None
 
-    # Optional: when set, ingestion binds/validates the upload's context api_base_url.
+    # Ingestion treats this as optional: when set, uploads are validated against it
+    # (api_base_url_mismatch); when unset, that check is skipped. Provisioning
+    # (cli/main.py create-device, rotate-token) treats it as required instead — a QR
+    # payload with no API URL is useless, so those commands raise if it's unset. Set
+    # it via env when running the CLI; the running Cloud Run service does not need it.
     api_base_url: str | None = None
 
     # Fallback retention window; the authoritative value lives in app_config.
