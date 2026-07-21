@@ -6,14 +6,15 @@ Full plan: the private agent repo's `projects/sms-ingest/docs/android-implementa
 
 ## Status
 
-Phase 1 (project scaffold) only: a buildable single-module Gradle project with a placeholder Compose screen. No permissions, QR scan, crypto, storage, networking, or SMS handling yet — those land in later phases.
+Phase 2 (setup/permissions/QR provisioning) landed on top of Phase 1's scaffold: a permission-consent screen, a CameraX + ML Kit QR scan screen, QR payload parsing/validation (`setup/ProvisioningPayload.kt`), and encrypted on-device credential storage (`setup/CredentialStore.kt`). `server_key_pin` is validated for shape and stored, but not yet compared against the backend's actual public keyset — the QR only carries the pin (a fingerprint), not the keyset itself, and no endpoint currently serves it; see the private agent repo's `open-questions.md` for that gap, which Phase 4/5 (crypto/network) must resolve. No local storage (Room), crypto, networking, or SMS handling yet — those land in later phases.
 
 ## Stack
 
 - Kotlin, Jetpack Compose (Material 3), single activity.
 - Gradle version catalog (`gradle/libs.versions.toml`).
 - Manual dependency wiring (`AppContainer`), no Hilt/Dagger.
-- Planned for later phases: Room (local queue/dedupe state), Retrofit + OkHttp + kotlinx.serialization (network), Jetpack Security `EncryptedSharedPreferences` (credential storage), CameraX + ML Kit Barcode Scanning (QR), Tink (`tink-android`, batch encryption), WorkManager (background sync).
+- kotlinx.serialization (QR payload parsing), Jetpack Security `EncryptedSharedPreferences` (credential storage), CameraX + ML Kit Barcode Scanning (QR).
+- Planned for later phases: Room (local queue/dedupe state), Retrofit + OkHttp (network), Tink (`tink-android`, batch encryption), WorkManager (background sync).
 
 ## Build
 

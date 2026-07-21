@@ -15,6 +15,22 @@ composeBom = "2024.09.00"
 junit = "4.13.2"
 androidxTestExtJunit = "1.3.0"
 espressoCore = "3.7.0"
+# Phase 2 additions (setup/permissions/QR provisioning).
+# androidxSecurityCrypto/cameraX/mlkitBarcodeScanning follow the same
+# compileSdk-35 constraint as above (Sept-2024-era or earlier releases so none
+# individually forces a compileSdk bump; verify against CI's
+# checkDebugAarMetadata output before bumping, per decisions.md 2026-07-21).
+# kotlinxSerializationJson/kotlinxCoroutines are pinned for a different
+# reason: their compatibility axis is the Kotlin *compiler* version (2.3.10
+# above), not compileSdk, so "older is safer" does not apply here — picked
+# newer-than-AndroidX-era releases expected to track a recent Kotlin
+# compiler. If CI reports incompatible-metadata or NoSuchMethodError on
+# these two, bump them up, not down.
+kotlinxSerializationJson = "1.8.0"
+kotlinxCoroutines = "1.9.0"
+androidxSecurityCrypto = "1.1.0-alpha06"
+cameraX = "1.3.4"
+mlkitBarcodeScanning = "17.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -30,7 +46,16 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "androidxSecurityCrypto" }
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraX" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraX" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraX" }
+mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
