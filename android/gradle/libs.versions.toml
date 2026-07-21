@@ -31,6 +31,15 @@ kotlinxCoroutines = "1.9.0"
 androidxSecurityCrypto = "1.1.0-alpha06"
 cameraX = "1.3.4"
 mlkitBarcodeScanning = "17.3.0"
+# Phase 3 addition (local storage). Room's AAR metadata declares
+# minCompileSdk=34 as of 2.8.4 (verified directly from the AAR, not just the
+# release date), so — unlike coreKtx/lifecycle/composeBom above — the latest
+# stable Room does not force a compileSdk bump past 35. KSP is pinned to the
+# exact same version string as `kotlin` above: as of the 2.3.x KSP line,
+# KSP versions track the Kotlin compiler version 1:1 (no separate suffix),
+# so ksp must move in lockstep with any future kotlin bump.
+room = "2.8.4"
+ksp = "2.3.10"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,8 +63,12 @@ androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", 
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraX" }
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
