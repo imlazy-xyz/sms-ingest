@@ -17,12 +17,12 @@ Phase 1 (project scaffold) only: a buildable single-module Gradle project with a
 
 ## Build
 
-Requires JDK 17+ and network access to Google's/Maven Central's Gradle plugin and dependency repositories (no Android SDK/emulator needed just to compile).
+Requires network access to Google's/Maven Central's Gradle plugin and dependency repositories (no Android SDK/emulator needed just to compile). Kotlin compiles against a JDK 17 toolchain (`kotlin { jvmToolchain(17) }` in `app/build.gradle.kts`) — Gradle auto-downloads one via the Foojay resolver plugin if a matching JDK isn't already installed, so you don't need JDK 17 specifically on `PATH`.
 
 ```sh
 cd android
 ./gradlew assembleDebug
-./gradlew test
+./gradlew testDebugUnitTest
 ```
 
 This has not been build-verified in the agent sandbox, which has no JDK/Android SDK installed (see `projects/sms-ingest/docs/android-implementation-plan.md` § Sandbox Constraint). `.github/workflows/android-ci.yml` runs `assembleDebug` and `testDebugUnitTest` on every push/PR touching `android/**` — check that workflow's status before relying on a change that hasn't been verified locally.
