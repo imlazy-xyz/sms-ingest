@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Declared ahead of the setup/backfill/receiver flow (Phase 2+, see
-         projects/sms-ingest/docs/android-implementation-plan.md). Not read yet. -->
+    <!-- Requested at runtime by setup/SetupScreen.kt. READ_SMS/RECEIVE_SMS are not
+         read yet outside setup consent (backfill/receiver land in Phase 6, see
+         projects/sms-ingest/docs/android-implementation-plan.md). -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <application
         android:name=".SmsIngestApplication"

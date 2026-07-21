@@ -7,7 +7,7 @@ Backend-first SMS ingestion project.
 ## Current Scope
 
 - Python FastAPI backend: complete, deployed to Cloud Run, Supabase Postgres.
-- Android app: Phase 1 (project scaffold) in progress, see `android/README.md`.
+- Android app: Phase 2 (setup/permissions/QR provisioning) in progress, see `android/README.md`.
 
 ## Security Baseline
 
