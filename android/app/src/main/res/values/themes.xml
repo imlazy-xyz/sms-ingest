@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Framework parent only: actual theming is done in Compose (ui/theme/Theme.kt).
+         Keeps the manifest theme buildable without pulling in the legacy
+         com.google.android.material view-based library, which this Compose-only
+         app does not otherwise depend on. -->
+    <style name="Theme.SmsIngest" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
