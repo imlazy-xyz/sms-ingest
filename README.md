@@ -1,5 +1,7 @@
 # sms-ingest
 
+[![Android CI](https://github.com/imlazy-xyz/sms-ingest/actions/workflows/android-ci.yml/badge.svg)](https://github.com/imlazy-xyz/sms-ingest/actions/workflows/android-ci.yml)
+
 Backend-first SMS ingestion project.
 
 ## Current Scope
