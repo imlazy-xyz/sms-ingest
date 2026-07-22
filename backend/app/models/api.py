@@ -50,3 +50,10 @@ class UploadResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     version: str
+
+
+class PublicKeyResponse(BaseModel):
+    scheme: str
+    server_key_id: str
+    server_key_pin: str
+    public_keyset_json: str

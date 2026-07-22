@@ -1,7 +1,7 @@
 """FastAPI application factory.
 
-Crypto primitives are loaded lazily on the first upload request (see
-``api.uploads.get_app_context``) so the app can start and serve health checks
+Crypto primitives are loaded lazily on the first request that needs them (see
+``app.context.get_app_context``) so the app can start and serve health checks
 even before all secrets are wired. Logging is minimal and never includes SMS
 plaintext, tokens, or key material.
 """
@@ -13,7 +13,7 @@ import logging
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import health, uploads
+from app.api import health, public_key, uploads
 from app.config import Settings, get_settings
 
 
@@ -25,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.ctx = None
 
     app.include_router(health.router)
+    app.include_router(public_key.router)
     app.include_router(uploads.router)
     return app
 

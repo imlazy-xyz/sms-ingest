@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from fastapi import Request
 from tink import aead, hybrid
 
 from app.config import Settings, get_settings
@@ -22,6 +23,7 @@ class AppContext:
     token_pepper: str
     server_key_id: str
     server_key_pin: str
+    public_keyset_json: str
     api_base_url: str | None
     retention_days_default: int
     expected_scheme: str = crypto.SCHEME
@@ -40,6 +42,15 @@ class AppContext:
             token_pepper=settings.require("token_hash_pepper"),
             server_key_id=settings.require("server_key_id"),
             server_key_pin=crypto.compute_key_pin(public_keyset),
+            public_keyset_json=public_keyset,
             api_base_url=settings.api_base_url,
             retention_days_default=settings.retention_days,
         )
+
+
+def get_app_context(request: Request) -> AppContext:
+    """Lazily build and cache the app's :class:`AppContext` on ``app.state``."""
+    app = request.app
+    if getattr(app.state, "ctx", None) is None:
+        app.state.ctx = AppContext.from_settings(app.state.settings)
+    return app.state.ctx
