@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app import db
-from app.context import AppContext
+from app.context import get_app_context
 from app.core import auth
 from app.models.api import NextSync, RejectedItem, UploadBatchRequest, UploadResponse
 from app.repositories import devices
@@ -16,13 +16,6 @@ from app.services import ingestion
 logger = logging.getLogger("sms_ingest.uploads")
 
 router = APIRouter()
-
-
-def get_app_context(request: Request) -> AppContext:
-    app = request.app
-    if getattr(app.state, "ctx", None) is None:
-        app.state.ctx = AppContext.from_settings(app.state.settings)
-    return app.state.ctx
 
 
 @router.post("/v1/uploads/sms-batches", response_model=UploadResponse)
