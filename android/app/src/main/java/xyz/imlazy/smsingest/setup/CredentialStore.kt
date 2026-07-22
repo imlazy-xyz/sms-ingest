@@ -6,18 +6,20 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Persists the QR-provisioned device credentials
- * (projects/sms-ingest/docs/android-implementation-plan.md § Implementation-Detail
- * Decisions: Jetpack Security `EncryptedSharedPreferences`, never Room/logs/backups).
- * An interface so [SetupViewModel] can be unit-tested without the Android Keystore.
+ * Persists the QR-provisioned device credentials and the pin-verified backend
+ * public keyset (projects/sms-ingest/docs/android-implementation-plan.md §
+ * Implementation-Detail Decisions: Jetpack Security `EncryptedSharedPreferences`,
+ * never Room/logs/backups). An interface so [SetupViewModel] can be
+ * unit-tested without the Android Keystore.
  */
 interface CredentialStore {
     fun isProvisioned(): Boolean
-    fun save(payload: ProvisioningPayload)
+    fun save(payload: ProvisioningPayload, publicKeysetJson: String)
 
     fun getApiBaseUrl(): String?
     fun getServerKeyId(): String?
     fun getServerKeyPin(): String?
+    fun getPublicKeysetJson(): String?
 }
 
 class EncryptedCredentialStore(context: Context) : CredentialStore {
@@ -45,7 +47,9 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
 
     override fun getServerKeyPin(): String? = prefs.getString(KEY_SERVER_KEY_PIN, null)
 
-    override fun save(payload: ProvisioningPayload) {
+    override fun getPublicKeysetJson(): String? = prefs.getString(KEY_PUBLIC_KEYSET_JSON, null)
+
+    override fun save(payload: ProvisioningPayload, publicKeysetJson: String) {
         prefs.edit()
             .putString(KEY_DEVICE_ID, payload.deviceId)
             .putString(KEY_DEVICE_TOKEN, payload.deviceToken)
@@ -53,6 +57,7 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
             .putString(KEY_API_BASE_URL, payload.apiBaseUrl)
             .putString(KEY_SERVER_KEY_ID, payload.serverKeyId)
             .putString(KEY_SERVER_KEY_PIN, payload.serverKeyPin)
+            .putString(KEY_PUBLIC_KEYSET_JSON, publicKeysetJson)
             .apply()
     }
 
@@ -64,5 +69,6 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
         const val KEY_API_BASE_URL = "api_base_url"
         const val KEY_SERVER_KEY_ID = "server_key_id"
         const val KEY_SERVER_KEY_PIN = "server_key_pin"
+        const val KEY_PUBLIC_KEYSET_JSON = "public_keyset_json"
     }
 }

@@ -59,7 +59,7 @@ class SetupViewModel(
             val result = keysetVerifier.verify(payload.apiBaseUrl, payload.serverKeyPin)
             _step.value = when (result) {
                 is KeysetVerification.Verified -> {
-                    credentialStore.save(payload)
+                    credentialStore.save(payload, result.publicKeysetJson)
                     SetupStep.Complete
                 }
                 KeysetVerification.PinMismatch ->
