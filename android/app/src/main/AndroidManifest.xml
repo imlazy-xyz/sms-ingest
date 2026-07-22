@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Normal permission, granted at install (no runtime consent needed).
+         Required by crypto/PublicKeyFetcher.kt's GET /v1/public-key and the
+         Phase 5 upload client. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
