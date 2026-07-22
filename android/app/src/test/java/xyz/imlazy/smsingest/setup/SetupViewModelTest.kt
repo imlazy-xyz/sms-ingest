@@ -17,17 +17,21 @@ import xyz.imlazy.smsingest.crypto.KeysetVerifier
 private class FakeCredentialStore(private var provisioned: Boolean = false) : CredentialStore {
     var saved: ProvisioningPayload? = null
         private set
+    var savedPublicKeysetJson: String? = null
+        private set
 
     override fun isProvisioned(): Boolean = provisioned
 
-    override fun save(payload: ProvisioningPayload) {
+    override fun save(payload: ProvisioningPayload, publicKeysetJson: String) {
         saved = payload
+        savedPublicKeysetJson = publicKeysetJson
         provisioned = true
     }
 
     override fun getApiBaseUrl(): String? = saved?.apiBaseUrl
     override fun getServerKeyId(): String? = saved?.serverKeyId
     override fun getServerKeyPin(): String? = saved?.serverKeyPin
+    override fun getPublicKeysetJson(): String? = savedPublicKeysetJson
 }
 
 /** Verifier stub returning a fixed outcome; never touches the network. */
@@ -99,6 +103,7 @@ class SetupViewModelTest {
 
             assertEquals(SetupStep.Complete, vm.step.value)
             assertEquals("11111111-1111-1111-1111-111111111111", credentialStore.saved?.deviceId)
+            assertEquals("public-keyset-json", credentialStore.savedPublicKeysetJson)
         }
 
     @Test
