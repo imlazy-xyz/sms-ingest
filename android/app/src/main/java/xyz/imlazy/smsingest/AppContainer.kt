@@ -2,6 +2,7 @@ package xyz.imlazy.smsingest
 
 import android.content.Context
 import xyz.imlazy.smsingest.crypto.CryptoConfig
+import xyz.imlazy.smsingest.crypto.DefaultKeysetVerifier
 import xyz.imlazy.smsingest.crypto.KeysetVerifier
 import xyz.imlazy.smsingest.data.AppDatabase
 import xyz.imlazy.smsingest.setup.CredentialStore
@@ -25,5 +26,5 @@ class AppContainer(private val appContext: Context) {
 
     val database: AppDatabase by lazy { AppDatabase.build(appContext) }
 
-    val keysetVerifier: KeysetVerifier by lazy { KeysetVerifier() }
+    val keysetVerifier: KeysetVerifier by lazy { DefaultKeysetVerifier() }
 }

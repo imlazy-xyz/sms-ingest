@@ -21,13 +21,19 @@ sealed interface KeysetVerification {
  * pin-verifies / key-travels-in-band pattern, like TLS pinning). Closes the pin
  * check that Phase 2 deferred.
  *
- * Never throws across this boundary and never logs keyset material or the pin.
+ * An interface so [xyz.imlazy.smsingest.setup.SetupViewModel] can be tested
+ * without the network. Implementations never throw across this boundary and
+ * never log keyset material or the pin.
  */
-class KeysetVerifier(
-    private val fetcher: PublicKeyFetcher = PublicKeyFetcher(),
-) {
+interface KeysetVerifier {
+    suspend fun verify(apiBaseUrl: String, expectedPin: String): KeysetVerification
+}
 
-    suspend fun verify(apiBaseUrl: String, expectedPin: String): KeysetVerification {
+class DefaultKeysetVerifier(
+    private val fetcher: PublicKeyFetcher = PublicKeyFetcher(),
+) : KeysetVerifier {
+
+    override suspend fun verify(apiBaseUrl: String, expectedPin: String): KeysetVerification {
         val response = try {
             fetcher.fetch(apiBaseUrl)
         } catch (exc: Exception) {
