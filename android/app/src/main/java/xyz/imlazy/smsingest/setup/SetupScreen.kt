@@ -40,6 +40,9 @@ fun SetupScreen(viewModel: SetupViewModel, modifier: Modifier = Modifier) {
         SetupStep.QrScan ->
             QrScanScreen(onQrDetected = viewModel::onQrScanned, modifier = modifier)
 
+        SetupStep.VerifyingKeyset ->
+            VerifyingKeysetContent(modifier = modifier)
+
         is SetupStep.ScanError ->
             ScanErrorContent(message = current.message, onRetry = viewModel::retryScan, modifier = modifier)
 
@@ -89,6 +92,17 @@ private fun ScanErrorContent(message: String, onRetry: () -> Unit, modifier: Mod
         Button(onClick = onRetry) {
             Text("Try again")
         }
+    }
+}
+
+@Composable
+private fun VerifyingKeysetContent(modifier: Modifier = Modifier) {
+    CenteredColumn(modifier) {
+        Text(text = "Verifying server key", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = "Checking the backend's encryption key against the setup code.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

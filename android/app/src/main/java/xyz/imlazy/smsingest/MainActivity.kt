@@ -21,7 +21,10 @@ class MainActivity : ComponentActivity() {
             SmsIngestTheme {
                 Scaffold { innerPadding ->
                     val viewModel: SetupViewModel = viewModel(
-                        factory = SetupViewModel.factory(container.credentialStore),
+                        factory = SetupViewModel.factory(
+                            container.credentialStore,
+                            container.keysetVerifier,
+                        ),
                     )
                     SetupScreen(viewModel = viewModel, modifier = Modifier.padding(innerPadding))
                 }

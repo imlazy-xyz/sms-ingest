@@ -25,12 +25,11 @@ data class ProvisioningPayload(
 
 /**
  * Parses and structurally validates a scanned QR payload. This only checks
- * shape (required fields present and well-formed) — it does not verify
- * `server_key_pin` against the backend's actual public keyset, because the QR
- * carries only the pin (a fingerprint), not keyset material, and no endpoint
- * currently serves it. See projects/sms-ingest/open-questions.md
- * ("keyset delivery for pin verification") for that gap; Phase 4/5 must
- * resolve it before the pin can be compared against anything.
+ * shape (required fields present and well-formed); it does not itself compare
+ * `server_key_pin` against real keyset material. That comparison happens after
+ * parsing, in [SetupViewModel], which fetches the backend keyset from
+ * `GET /v1/public-key` and verifies its fingerprint against this pin
+ * ([xyz.imlazy.smsingest.crypto.KeysetVerifier]) before setup completes.
  *
  * Never include the raw payload or any field value in a returned error —
  * callers must not log it either (docs/backend-plan.md: "Do not log QR
