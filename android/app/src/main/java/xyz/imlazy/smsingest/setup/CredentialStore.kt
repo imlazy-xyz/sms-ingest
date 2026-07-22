@@ -14,6 +14,10 @@ import androidx.security.crypto.MasterKey
 interface CredentialStore {
     fun isProvisioned(): Boolean
     fun save(payload: ProvisioningPayload)
+
+    fun getApiBaseUrl(): String?
+    fun getServerKeyId(): String?
+    fun getServerKeyPin(): String?
 }
 
 class EncryptedCredentialStore(context: Context) : CredentialStore {
@@ -34,6 +38,12 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
     }
 
     override fun isProvisioned(): Boolean = prefs.contains(KEY_DEVICE_ID)
+
+    override fun getApiBaseUrl(): String? = prefs.getString(KEY_API_BASE_URL, null)
+
+    override fun getServerKeyId(): String? = prefs.getString(KEY_SERVER_KEY_ID, null)
+
+    override fun getServerKeyPin(): String? = prefs.getString(KEY_SERVER_KEY_PIN, null)
 
     override fun save(payload: ProvisioningPayload) {
         prefs.edit()

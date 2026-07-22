@@ -40,6 +40,15 @@ mlkitBarcodeScanning = "17.3.0"
 # so ksp must move in lockstep with any future kotlin bump.
 room = "2.8.4"
 ksp = "2.3.10"
+# Phase 4 addition (crypto). `tink-android` ships as a plain JAR (not an AAR),
+# so it declares no AAR metadata and cannot force a compileSdk bump — unlike
+# the AndroidX/Room/CameraX artifacts above, the compileSdk-35 lock is not a
+# concern here (verified from the Maven artifact listing: only
+# tink-android-<v>.jar, no .aar). Its runtime deps (gson, protobuf-lite,
+# annotation-jvm, jsr305) are equally SDK-agnostic. X25519 HPKE uses Tink's
+# own KEM implementation, so cleartext-keyset encrypt/decrypt touches no
+# `android.*` and runs under plain-JVM `testDebugUnitTest` without an emulator.
+tink = "1.18.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -57,6 +66,12 @@ androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+# Provides the Android `Dispatchers.Main` implementation via ServiceLoader —
+# required at runtime by `viewModelScope.launch` (SetupViewModel's keyset
+# verify). Not guaranteed transitively by the lifecycle 2.8.4 artifacts, so
+# pinned explicitly; same Kotlin-compiler compat axis as coroutines-core.
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "androidxSecurityCrypto" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraX" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraX" }
@@ -66,6 +81,7 @@ mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning"
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
