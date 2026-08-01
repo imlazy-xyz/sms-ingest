@@ -49,6 +49,16 @@ ksp = "2.3.10"
 # own KEM implementation, so cleartext-keyset encrypt/decrypt touches no
 # `android.*` and runs under plain-JVM `testDebugUnitTest` without an emulator.
 tink = "1.18.0"
+# Phase 5 addition (network client). OkHttp/Retrofit/the kotlinx.serialization
+# converter are pure Java/Kotlin libraries with no Android-specific variant —
+# like tink-android above, they should carry no AAR metadata and so shouldn't
+# force a compileSdk bump. Not independently re-verified against the Maven
+# artifact listing this session (network access to Maven Central was blocked
+# in the sandbox); confirm against CI's checkDebugAarMetadata output before
+# relying on it. mockwebserver3 is test-only (does not affect app compileSdk).
+retrofit = "2.11.0"
+retrofitKotlinxSerializationConverter = "1.0.0"
+okhttp = "4.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -82,6 +92,10 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
+retrofit-core = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-kotlinx-serialization-converter = { group = "com.jakewharton.retrofit", name = "retrofit2-kotlinx-serialization-converter", version.ref = "retrofitKotlinxSerializationConverter" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

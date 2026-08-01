@@ -20,6 +20,9 @@ interface CredentialStore {
     fun getServerKeyId(): String?
     fun getServerKeyPin(): String?
     fun getPublicKeysetJson(): String?
+
+    /** Bearer token for `Authorization` on upload requests (`network/AuthInterceptor.kt`). */
+    fun getDeviceToken(): String?
 }
 
 class EncryptedCredentialStore(context: Context) : CredentialStore {
@@ -48,6 +51,8 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
     override fun getServerKeyPin(): String? = prefs.getString(KEY_SERVER_KEY_PIN, null)
 
     override fun getPublicKeysetJson(): String? = prefs.getString(KEY_PUBLIC_KEYSET_JSON, null)
+
+    override fun getDeviceToken(): String? = prefs.getString(KEY_DEVICE_TOKEN, null)
 
     override fun save(payload: ProvisioningPayload, publicKeysetJson: String) {
         prefs.edit()
