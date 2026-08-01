@@ -32,6 +32,7 @@ private class FakeCredentialStore(private var provisioned: Boolean = false) : Cr
     override fun getServerKeyId(): String? = saved?.serverKeyId
     override fun getServerKeyPin(): String? = saved?.serverKeyPin
     override fun getPublicKeysetJson(): String? = savedPublicKeysetJson
+    override fun getDeviceToken(): String? = saved?.deviceToken
 }
 
 /** Verifier stub returning a fixed outcome; never touches the network. */
