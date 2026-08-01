@@ -6,7 +6,13 @@ import org.junit.Test
 import xyz.imlazy.smsingest.setup.CredentialStore
 import xyz.imlazy.smsingest.setup.ProvisioningPayload
 
-private class FakeCredentialStore(
+// Named distinctly from sync/BatchSyncerTest.kt's own `FakeCredentialStore`:
+// both are `private`, but a top-level `private` class in Kotlin is only
+// file-*visibility*-scoped, not name-mangled — two files in the same package
+// declaring the same class name is a real compile-time redeclaration clash,
+// not just a style nit (caught by CI: cascaded into spurious "unresolved
+// reference" errors throughout BatchSyncerTest.kt too).
+private class FakeGateCredentialStore(
     private val provisioned: Boolean,
     private val backfillComplete: Boolean,
 ) : CredentialStore {
@@ -26,16 +32,16 @@ class BackfillGateTest {
 
     @Test
     fun `runs when provisioned and backfill has not completed`() {
-        assertTrue(BackfillGate.shouldRun(FakeCredentialStore(provisioned = true, backfillComplete = false)))
+        assertTrue(BackfillGate.shouldRun(FakeGateCredentialStore(provisioned = true, backfillComplete = false)))
     }
 
     @Test
     fun `does not run when not yet provisioned`() {
-        assertFalse(BackfillGate.shouldRun(FakeCredentialStore(provisioned = false, backfillComplete = false)))
+        assertFalse(BackfillGate.shouldRun(FakeGateCredentialStore(provisioned = false, backfillComplete = false)))
     }
 
     @Test
     fun `does not run again once backfill has already completed`() {
-        assertFalse(BackfillGate.shouldRun(FakeCredentialStore(provisioned = true, backfillComplete = true)))
+        assertFalse(BackfillGate.shouldRun(FakeGateCredentialStore(provisioned = true, backfillComplete = true)))
     }
 }
