@@ -23,6 +23,9 @@ interface CredentialStore {
 
     /** Bearer token for `Authorization` on upload requests (`network/AuthInterceptor.kt`). */
     fun getDeviceToken(): String?
+
+    /** HMAC secret for dedupe ID computation (`crypto/DedupeId.kt`, `sms/SmsIngestor.kt`). */
+    fun getDeviceDedupeSecret(): String?
 }
 
 class EncryptedCredentialStore(context: Context) : CredentialStore {
@@ -53,6 +56,8 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
     override fun getPublicKeysetJson(): String? = prefs.getString(KEY_PUBLIC_KEYSET_JSON, null)
 
     override fun getDeviceToken(): String? = prefs.getString(KEY_DEVICE_TOKEN, null)
+
+    override fun getDeviceDedupeSecret(): String? = prefs.getString(KEY_DEVICE_DEDUPE_SECRET, null)
 
     override fun save(payload: ProvisioningPayload, publicKeysetJson: String) {
         prefs.edit()

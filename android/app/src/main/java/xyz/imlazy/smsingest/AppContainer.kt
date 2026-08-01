@@ -7,6 +7,7 @@ import xyz.imlazy.smsingest.crypto.KeysetVerifier
 import xyz.imlazy.smsingest.data.AppDatabase
 import xyz.imlazy.smsingest.setup.CredentialStore
 import xyz.imlazy.smsingest.setup.EncryptedCredentialStore
+import xyz.imlazy.smsingest.sms.SmsIngestor
 
 /**
  * Hand-wired dependency container (no Hilt/Dagger — see
@@ -27,4 +28,9 @@ class AppContainer(private val appContext: Context) {
     val database: AppDatabase by lazy { AppDatabase.build(appContext) }
 
     val keysetVerifier: KeysetVerifier by lazy { DefaultKeysetVerifier() }
+
+    /** Consumed by [xyz.imlazy.smsingest.sms.SmsReceiver], which is manifest-registered and live. */
+    val smsIngestor: SmsIngestor by lazy {
+        SmsIngestor(database.pendingBatchDao(), database.uploadedDedupeDao(), credentialStore)
+    }
 }
