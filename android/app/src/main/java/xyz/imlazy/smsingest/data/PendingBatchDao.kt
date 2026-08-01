@@ -25,4 +25,8 @@ interface PendingBatchDao {
 
     @Query("SELECT * FROM pending_batches WHERE state = :state ORDER BY createdAtEpochMillis ASC")
     fun observeByState(state: String): Flow<List<PendingBatchEntity>>
+
+    /** One-shot read for [xyz.imlazy.smsingest.sync.BatchSyncer], which processes a batch and moves on. */
+    @Query("SELECT * FROM pending_batches WHERE state = :state ORDER BY createdAtEpochMillis ASC")
+    suspend fun getByState(state: String): List<PendingBatchEntity>
 }

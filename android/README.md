@@ -6,17 +6,23 @@ Full plan: the private agent repo's `projects/sms-ingest/docs/android-implementa
 
 ## Status
 
-Phase 2 (setup/permissions/QR provisioning) landed on top of Phase 1's scaffold: a permission-consent screen, a CameraX + ML Kit QR scan screen, QR payload parsing/validation (`setup/ProvisioningPayload.kt`), and encrypted on-device credential storage (`setup/CredentialStore.kt`). `server_key_pin` is validated for shape and stored, but not yet compared against the backend's actual public keyset — the QR only carries the pin (a fingerprint), not the keyset itself, and no endpoint currently serves it; see the private agent repo's `open-questions.md` for that gap, which Phase 4/5 (crypto/network) must resolve.
+Phases 1–7 of `docs/android-implementation-plan.md` are implemented: scaffold, setup/QR provisioning (`setup/`), Room local storage (`data/`), Tink HPKE crypto (`crypto/`), a Retrofit network client (`network/`), SMS capture (`sms/`), and background sync/retry (`sync/`).
 
-Phase 3 (local storage) adds a Room `AppDatabase` (`data/`) with a `pending_batches` table (outbound batch queue state keyed by `client_batch_id`, message payload stored as JSON pending the `SmsRecord` shape Phase 6 defines) and an `uploaded_dedupe_ids` table (offline duplicate suppression before hitting the network), plus `crypto/DedupeId.kt` computing the HMAC dedupe fingerprint — canonicalization matches the backend's `backend/app/core/dedupe.py` byte-for-byte, unit-tested against a cross-checked known-answer vector. No crypto (batch encryption), networking, or SMS handling yet — those land in later phases.
+- **Setup/provisioning**: permission-consent screen, CameraX + ML Kit QR scan, QR payload parsing/validation (`setup/ProvisioningPayload.kt`), and encrypted on-device credential storage (`setup/CredentialStore.kt`). `server_key_pin` is fetched-and-verified against the backend's real public keyset via `GET /v1/public-key` (`crypto/KeysetVerifier.kt`) before setup completes.
+- **Local storage**: Room `AppDatabase` (`data/`) with a `pending_batches` outbound queue (keyed by `client_batch_id`) and an `uploaded_dedupe_ids` table for offline duplicate suppression, plus `crypto/DedupeId.kt` computing the HMAC dedupe fingerprint — canonicalization matches the backend's `backend/app/core/dedupe.py` byte-for-byte.
+- **Crypto**: `crypto/BatchEncryptor.kt` (Tink HPKE hybrid encrypt) and `crypto/ContextInfo.kt` (canonical `context_info` bytes bound into the ciphertext, matching `backend/app/core/crypto.py` byte-for-byte — cross-checked against a real backend-generated fixture in `crypto/CryptoInteropTest.kt`).
+- **Network**: Retrofit `IngestApi` (`network/IngestApi.kt`) for `POST /v1/uploads/sms-batches`, with an `AuthInterceptor` attaching the bearer token and never logging it.
+- **SMS capture**: `sms/SmsBackfillReader.kt` (historical inbox read) and `sms/SmsReceiver.kt` (new inbox SMS), both feeding `sms/SmsIngestor.kt`, which computes dedupe ids and queues a `PendingBatchEntity`.
+- **Sync and retry**: `sync/SyncWorker.kt` (WorkManager) reads pending batches, encrypts and uploads each via `sync/BatchSyncer.kt`, and records accepted/duplicate message dedupe ids on success. `sync/SyncScheduler.kt` schedules a periodic reconciliation sync (any-network, exponential backoff), an expedited one-time sync triggered from `SmsReceiver` after a new SMS, and a one-time historical backfill (`sync/BackfillWorker.kt`) enqueued once setup completes.
+
+Packaging/signing for a sideload release (Phase 9) has not started.
 
 ## Stack
 
 - Kotlin, Jetpack Compose (Material 3), single activity.
 - Gradle version catalog (`gradle/libs.versions.toml`).
 - Manual dependency wiring (`AppContainer`), no Hilt/Dagger.
-- kotlinx.serialization (QR payload parsing), Jetpack Security `EncryptedSharedPreferences` (credential storage), CameraX + ML Kit Barcode Scanning (QR), Room + KSP (local batch queue / dedupe cache).
-- Planned for later phases: Retrofit + OkHttp (network), Tink (`tink-android`, batch encryption), WorkManager (background sync).
+- kotlinx.serialization (QR payload parsing, wire models), Jetpack Security `EncryptedSharedPreferences` (credential storage), CameraX + ML Kit Barcode Scanning (QR), Room + KSP (local batch queue / dedupe cache), Tink (`tink-android`, batch encryption), Retrofit + OkHttp (network client), WorkManager (background sync/retry).
 
 ## Build
 

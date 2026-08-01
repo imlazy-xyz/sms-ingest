@@ -30,8 +30,8 @@ data class SmsCapture(
  * (`backend/app/services/ingestion.py::_validate_message`). Never sent as
  * standalone JSON — a `List<SmsRecord>` is what `PendingBatchEntity
  * .messagesJson` stores, and the full plaintext envelope (adding
- * `schema_version`/`device`) gets assembled around it at encrypt/upload
- * time (Phase 7), then HPKE-encrypted into
+ * `schema_version`/`device`, see `sync.BatchPayload`) gets assembled around
+ * it at encrypt/upload time (`sync.BatchSyncer`), then HPKE-encrypted into
  * `network.UploadBatchRequest.ciphertext`.
  *
  * [direction] has no default value on purpose, same reasoning as

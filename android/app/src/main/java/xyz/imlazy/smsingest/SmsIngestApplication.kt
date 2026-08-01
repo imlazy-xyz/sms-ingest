@@ -10,5 +10,7 @@ class SmsIngestApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // Idempotent (ExistingPeriodicWorkPolicy.KEEP) — safe to call on every start.
+        container.syncScheduler.ensurePeriodicSync()
     }
 }

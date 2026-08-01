@@ -59,6 +59,12 @@ tink = "1.18.0"
 retrofit = "2.11.0"
 retrofitKotlinxSerializationConverter = "1.0.0"
 okhttp = "4.12.0"
+# Phase 7 addition (background sync). 2.9.x is contemporaneous with the other
+# Sept-2024-era AndroidX pins above (2.10.x moved to a later compileSdk
+# baseline). Not independently re-verified against the Maven artifact
+# listing in this sandbox (no network access) — confirm against CI's
+# checkDebugAarMetadata output before bumping, per decisions.md 2026-07-21.
+work = "2.9.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -96,6 +102,7 @@ retrofit-core = { group = "com.squareup.retrofit2", name = "retrofit", version.r
 retrofit-kotlinx-serialization-converter = { group = "com.jakewharton.retrofit", name = "retrofit2-kotlinx-serialization-converter", version.ref = "retrofitKotlinxSerializationConverter" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

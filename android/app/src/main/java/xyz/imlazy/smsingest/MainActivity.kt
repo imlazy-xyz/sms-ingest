@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
                         factory = SetupViewModel.factory(
                             container.credentialStore,
                             container.keysetVerifier,
+                            onProvisioned = { container.syncScheduler.enqueueBackfillIfNeeded() },
                         ),
                     )
                     SetupScreen(viewModel = viewModel, modifier = Modifier.padding(innerPadding))
