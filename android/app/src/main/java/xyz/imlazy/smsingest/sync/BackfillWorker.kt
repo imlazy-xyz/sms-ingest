@@ -13,21 +13,22 @@ import xyz.imlazy.smsingest.sms.SmsBackfillReader
  * this was left unwired in Phase 6
  * (`projects/sms-ingest/docs/android-implementation-plan.md` Phase 7 note).
  *
- * Guarded by [xyz.imlazy.smsingest.setup.CredentialStore.isBackfillComplete]
- * so a re-enqueue (WorkManager's own unique-work "already ran" record can be
- * pruned over time) is a fast no-op rather than a repeat read of the whole
- * inbox.
+ * Guarded by [BackfillGate] ([xyz.imlazy.smsingest.setup.CredentialStore.isBackfillComplete]
+ * under the hood) so a re-enqueue (WorkManager's own unique-work "already
+ * ran" record can be pruned over time) is a fast no-op rather than a repeat
+ * read of the whole inbox.
  *
- * Not unit-testable in this repo, same as [SmsBackfillReader] itself
- * (`ContentResolver` needs an instrumented test/emulator) — kept thin so
- * manual review can cover it.
+ * The inbox read itself isn't unit-testable in this repo, same as
+ * [SmsBackfillReader] (`ContentResolver` needs an instrumented
+ * test/emulator) — but the guard condition is: see [BackfillGate] and its
+ * test.
  */
 class BackfillWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         val container = (applicationContext as SmsIngestApplication).container
         val credentialStore = container.credentialStore
-        if (credentialStore.isBackfillComplete() || !credentialStore.isProvisioned()) {
+        if (!BackfillGate.shouldRun(credentialStore)) {
             return Result.success()
         }
         val captures = SmsBackfillReader(applicationContext).read()
