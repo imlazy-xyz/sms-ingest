@@ -27,6 +27,7 @@ private class FakePendingBatchDao : PendingBatchDao {
         inserted.find { it.clientBatchId == clientBatchId }
 
     override fun observeByState(state: String): Flow<List<PendingBatchEntity>> = flowOf(emptyList())
+    override suspend fun getByState(state: String): List<PendingBatchEntity> = inserted.filter { it.state == state }
 }
 
 private class FakeUploadedDedupeDao(private val existing: Set<String> = emptySet()) : UploadedDedupeDao {
@@ -43,6 +44,8 @@ private class FakeCredentialStore(private val dedupeSecret: String?) : Credentia
     override fun getPublicKeysetJson(): String? = null
     override fun getDeviceToken(): String? = null
     override fun getDeviceDedupeSecret(): String? = dedupeSecret
+    override fun isBackfillComplete(): Boolean = false
+    override fun markBackfillComplete() = Unit
 }
 
 class SmsIngestorTest {

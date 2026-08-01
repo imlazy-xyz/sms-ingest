@@ -26,6 +26,17 @@ interface CredentialStore {
 
     /** HMAC secret for dedupe ID computation (`crypto/DedupeId.kt`, `sms/SmsIngestor.kt`). */
     fun getDeviceDedupeSecret(): String?
+
+    /**
+     * Whether the one-time historical inbox backfill
+     * ([xyz.imlazy.smsingest.sync.BackfillWorker]) has already run for this
+     * install. The source of truth for "run at most once" — WorkManager's own
+     * unique-work de-duplication is only a first line of defense, since
+     * finished work can be pruned from its database over time.
+     */
+    fun isBackfillComplete(): Boolean
+
+    fun markBackfillComplete()
 }
 
 class EncryptedCredentialStore(context: Context) : CredentialStore {
@@ -59,6 +70,12 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
 
     override fun getDeviceDedupeSecret(): String? = prefs.getString(KEY_DEVICE_DEDUPE_SECRET, null)
 
+    override fun isBackfillComplete(): Boolean = prefs.getBoolean(KEY_BACKFILL_COMPLETE, false)
+
+    override fun markBackfillComplete() {
+        prefs.edit().putBoolean(KEY_BACKFILL_COMPLETE, true).apply()
+    }
+
     override fun save(payload: ProvisioningPayload, publicKeysetJson: String) {
         prefs.edit()
             .putString(KEY_DEVICE_ID, payload.deviceId)
@@ -80,5 +97,6 @@ class EncryptedCredentialStore(context: Context) : CredentialStore {
         const val KEY_SERVER_KEY_ID = "server_key_id"
         const val KEY_SERVER_KEY_PIN = "server_key_pin"
         const val KEY_PUBLIC_KEYSET_JSON = "public_keyset_json"
+        const val KEY_BACKFILL_COMPLETE = "backfill_complete"
     }
 }

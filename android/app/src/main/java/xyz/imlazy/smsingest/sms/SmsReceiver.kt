@@ -47,11 +47,12 @@ class SmsReceiver : BroadcastReceiver() {
         val captures = toCaptures(messages, intent)
         if (captures.isEmpty()) return
 
-        val ingestor = (context.applicationContext as SmsIngestApplication).container.smsIngestor
+        val container = (context.applicationContext as SmsIngestApplication).container
         val pendingResult = goAsync()
         receiverScope.launch {
             try {
-                ingestor.enqueue(captures)
+                container.smsIngestor.enqueue(captures)
+                container.syncScheduler.requestExpeditedSync()
             } finally {
                 pendingResult.finish()
             }

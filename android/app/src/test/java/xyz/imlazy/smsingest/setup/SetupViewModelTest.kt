@@ -34,6 +34,8 @@ private class FakeCredentialStore(private var provisioned: Boolean = false) : Cr
     override fun getPublicKeysetJson(): String? = savedPublicKeysetJson
     override fun getDeviceToken(): String? = saved?.deviceToken
     override fun getDeviceDedupeSecret(): String? = saved?.deviceDedupeSecret
+    override fun isBackfillComplete(): Boolean = false
+    override fun markBackfillComplete() = Unit
 }
 
 /** Verifier stub returning a fixed outcome; never touches the network. */
@@ -72,7 +74,8 @@ class SetupViewModelTest {
     private fun viewModel(
         credentialStore: CredentialStore,
         verification: KeysetVerification = KeysetVerification.Verified("public-keyset-json"),
-    ) = SetupViewModel(credentialStore, FakeKeysetVerifier(verification))
+        onProvisioned: () -> Unit = {},
+    ) = SetupViewModel(credentialStore, FakeKeysetVerifier(verification), onProvisioned)
 
     @Test
     fun `starts at permission request when no credentials are stored`() {
@@ -106,6 +109,44 @@ class SetupViewModelTest {
             assertEquals(SetupStep.Complete, vm.step.value)
             assertEquals("11111111-1111-1111-1111-111111111111", credentialStore.saved?.deviceId)
             assertEquals("public-keyset-json", credentialStore.savedPublicKeysetJson)
+        }
+
+    @Test
+    fun `invokes onProvisioned exactly once when setup completes fresh`() =
+        runTest(dispatcher) {
+            var callCount = 0
+            val vm = viewModel(FakeCredentialStore(), onProvisioned = { callCount++ })
+            vm.onPermissionsGranted()
+
+            vm.onQrScanned(VALID_QR_JSON)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(1, callCount)
+        }
+
+    @Test
+    fun `does not invoke onProvisioned when already provisioned at construction`() {
+        var callCount = 0
+        viewModel(FakeCredentialStore(provisioned = true), onProvisioned = { callCount++ })
+
+        assertEquals(0, callCount)
+    }
+
+    @Test
+    fun `does not invoke onProvisioned when the keyset pin does not match`() =
+        runTest(dispatcher) {
+            var callCount = 0
+            val vm = viewModel(
+                FakeCredentialStore(),
+                KeysetVerification.PinMismatch,
+                onProvisioned = { callCount++ },
+            )
+            vm.onPermissionsGranted()
+
+            vm.onQrScanned(VALID_QR_JSON)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(0, callCount)
         }
 
     @Test

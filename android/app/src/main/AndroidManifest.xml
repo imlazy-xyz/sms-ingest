@@ -4,8 +4,9 @@
     <!-- Requested at runtime by setup/SetupScreen.kt. RECEIVE_SMS backs the
          .sms.SmsReceiver registration below; READ_SMS backs
          .sms.SmsBackfillReader's content://sms/inbox query (Phase 6, see
-         projects/sms-ingest/docs/android-implementation-plan.md). Backfill's
-         trigger point isn't wired yet — Phase 7. -->
+         projects/sms-ingest/docs/android-implementation-plan.md). Backfill
+         runs once via .sync.BackfillWorker, enqueued right after setup
+         completes (Phase 7, .setup.SetupViewModel's onProvisioned callback). -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.CAMERA" />

@@ -25,6 +25,16 @@ sealed interface SetupStep {
 class SetupViewModel(
     private val credentialStore: CredentialStore,
     private val keysetVerifier: KeysetVerifier,
+    /**
+     * Invoked exactly once, right after credentials are first saved — the
+     * trigger point for the one-time historical inbox backfill
+     * ([xyz.imlazy.smsingest.sync.SyncScheduler.enqueueBackfillIfNeeded],
+     * wired in from [xyz.imlazy.smsingest.MainActivity]). Not invoked on the
+     * initial state when the device was already provisioned before this
+     * `ViewModel` was created — backfill only ever needs to run once per
+     * install, not on every app start.
+     */
+    private val onProvisioned: () -> Unit = {},
 ) : ViewModel() {
 
     private val _step = MutableStateFlow<SetupStep>(
@@ -60,6 +70,7 @@ class SetupViewModel(
             _step.value = when (result) {
                 is KeysetVerification.Verified -> {
                     credentialStore.save(payload, result.publicKeysetJson)
+                    onProvisioned()
                     SetupStep.Complete
                 }
                 KeysetVerification.PinMismatch ->
@@ -78,11 +89,12 @@ class SetupViewModel(
         fun factory(
             credentialStore: CredentialStore,
             keysetVerifier: KeysetVerifier,
+            onProvisioned: () -> Unit = {},
         ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    SetupViewModel(credentialStore, keysetVerifier) as T
+                    SetupViewModel(credentialStore, keysetVerifier, onProvisioned) as T
             }
     }
 }

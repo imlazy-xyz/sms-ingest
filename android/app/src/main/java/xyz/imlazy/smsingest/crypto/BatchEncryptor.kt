@@ -24,6 +24,9 @@ class BatchEncryptor private constructor(private val hybridEncrypt: HybridEncryp
         hybridEncrypt.encrypt(plaintext, contextInfo)
 
     companion object {
+        /** Wire label for `encryption.scheme`, per `backend/app/core/crypto.py::SCHEME`. */
+        const val SCHEME = "tink-hpke-x25519-aes256gcm-v1"
+
         fun fromPublicKeysetJson(publicKeysetJson: String): BatchEncryptor {
             val handle = CleartextKeysetHandle.read(JsonKeysetReader.withString(publicKeysetJson))
             return BatchEncryptor(handle.getPrimitive(HybridEncrypt::class.java))
