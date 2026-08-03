@@ -59,4 +59,17 @@ There is no Play signing key — this is a sideload-only app, so you sign a rele
    adb install app/build/outputs/apk/release/app-release.apk
    ```
 
-If `android/keystore.properties` is absent, `assembleRelease` still runs but produces an unsigned APK that `adb install` will reject — this is expected for CI (which only builds/tests debug) and is not an error to work around there.
+If `android/keystore.properties` is absent, `assembleRelease` still runs but produces an unsigned APK that `adb install` will reject — this is expected for CI's push/PR workflow (which only builds/tests debug) and is not an error to work around there.
+
+### No local build environment? Build the signed APK in CI instead
+
+`.github/workflows/android-release.yml` (manual trigger only, `workflow_dispatch`) builds a signed release APK using repo secrets (`RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`) and uploads it as a downloadable artifact — no local JDK/Android SDK needed:
+
+```sh
+gh workflow run android-release.yml
+gh run watch    # wait for it to finish
+gh run download --name sms-ingest-release-apk
+adb install app-release.apk
+```
+
+The keystore never leaves GitHub's encrypted secret storage or the ephemeral CI runner — it's decoded to a temp file, used to sign, then deleted before the job ends. This workflow is separate from `android-ci.yml` (which runs on every push/PR, including from forks) specifically so pull_request runs never have these secrets in scope.
