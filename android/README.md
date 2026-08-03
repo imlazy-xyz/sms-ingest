@@ -6,7 +6,7 @@ Full plan: the private agent repo's `projects/sms-ingest/docs/android-implementa
 
 ## Status
 
-Phases 1–7 of `docs/android-implementation-plan.md` are implemented: scaffold, setup/QR provisioning (`setup/`), Room local storage (`data/`), Tink HPKE crypto (`crypto/`), a Retrofit network client (`network/`), SMS capture (`sms/`), and background sync/retry (`sync/`).
+Phases 1–8 of `docs/android-implementation-plan.md` are implemented: scaffold, setup/QR provisioning (`setup/`), Room local storage (`data/`), Tink HPKE crypto (`crypto/`), a Retrofit network client (`network/`), SMS capture (`sms/`), background sync/retry (`sync/`), and unit-test coverage of all of the above.
 
 - **Setup/provisioning**: permission-consent screen, CameraX + ML Kit QR scan, QR payload parsing/validation (`setup/ProvisioningPayload.kt`), and encrypted on-device credential storage (`setup/CredentialStore.kt`). `server_key_pin` is fetched-and-verified against the backend's real public keyset via `GET /v1/public-key` (`crypto/KeysetVerifier.kt`) before setup completes.
 - **Local storage**: Room `AppDatabase` (`data/`) with a `pending_batches` outbound queue (keyed by `client_batch_id`) and an `uploaded_dedupe_ids` table for offline duplicate suppression, plus `crypto/DedupeId.kt` computing the HMAC dedupe fingerprint — canonicalization matches the backend's `backend/app/core/dedupe.py` byte-for-byte.
@@ -15,7 +15,7 @@ Phases 1–7 of `docs/android-implementation-plan.md` are implemented: scaffold,
 - **SMS capture**: `sms/SmsBackfillReader.kt` (historical inbox read) and `sms/SmsReceiver.kt` (new inbox SMS), both feeding `sms/SmsIngestor.kt`, which computes dedupe ids and queues a `PendingBatchEntity`.
 - **Sync and retry**: `sync/SyncWorker.kt` (WorkManager) reads pending batches, encrypts and uploads each via `sync/BatchSyncer.kt`, and records accepted/duplicate message dedupe ids on success. `sync/SyncScheduler.kt` schedules a periodic reconciliation sync (any-network, exponential backoff), an expedited one-time sync triggered from `SmsReceiver` after a new SMS, and a one-time historical backfill (`sync/BackfillWorker.kt`) enqueued once setup completes.
 
-Packaging/signing for a sideload release (Phase 9) has not started.
+Phase 9 (packaging/release) is in progress — see Install (sideload) below. Instrumented tests (`androidTest`: permission flow, Room DAO behavior, WorkManager scheduling) remain undone; `.github/workflows/android-ci.yml` has no emulator step, so this needs an explicit tooling decision before any `androidTest` code gets real verification.
 
 ## Stack
 
@@ -38,4 +38,25 @@ This has not been build-verified in the agent sandbox, which has no JDK/Android 
 
 ## Install (sideload)
 
-Signing/packaging instructions land in Phase 9 of the implementation plan, once there's a release worth installing.
+There is no Play signing key — this is a sideload-only app, so you sign a release build yourself with a self-managed keystore that never enters this repo (`android/keystore.properties` and any `.jks`/`.keystore` file are gitignored).
+
+1. From inside `android/`, generate a release keystore once (keep it outside version control, back it up somewhere durable — losing it means future updates can't be installed over an existing app copy without uninstalling first):
+
+   ```sh
+   cd android
+   keytool -genkeypair -v \
+     -keystore release.jks \
+     -alias sms-ingest-release \
+     -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+2. Copy `android/keystore.properties.example` to `android/keystore.properties` and fill in the `storeFile` path (relative to `android/`), the store/key passwords you chose, and the key alias.
+3. Build and install the signed release APK:
+
+   ```sh
+   cd android
+   ./gradlew assembleRelease
+   adb install app/build/outputs/apk/release/app-release.apk
+   ```
+
+If `android/keystore.properties` is absent, `assembleRelease` still runs but produces an unsigned APK that `adb install` will reject — this is expected for CI (which only builds/tests debug) and is not an error to work around there.

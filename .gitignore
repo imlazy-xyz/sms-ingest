@@ -23,6 +23,10 @@ build/
 local.properties
 *.apk
 *.aab
+keystore.properties
+!keystore.properties.example
+*.jks
+*.keystore
 
 # Env/secrets
 .env

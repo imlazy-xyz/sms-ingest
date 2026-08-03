@@ -1,8 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+}
+
+// Release signing is for sideload/internal installs only (no Play signing).
+// The keystore and its credentials never enter this public repo: see
+// android/keystore.properties.example and android/README.md § Install (sideload).
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasKeystoreProperties = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasKeystoreProperties) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -19,6 +32,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasKeystoreProperties) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -26,6 +50,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Absent locally/in CI: assembleRelease then produces an unsigned APK
+            // (fine for CI, which never builds release; see README for local signing setup).
+            if (hasKeystoreProperties) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
