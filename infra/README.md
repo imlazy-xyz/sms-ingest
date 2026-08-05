@@ -107,7 +107,20 @@ payload, so provisioning without it is a `RuntimeError`, not a silent gap.
 
 Deploy an **immutable, digest-pinned** image — never `:latest`. Terraform owns
 the rest of the service config (env, secrets, scaling, concurrency) and ignores
-the image reference, so this changes only the running image:
+the image reference, so this changes only the running image.
+
+### Via CI (preferred)
+
+`gh workflow run backend-deploy.yml` runs the same build/push/deploy steps
+below in GitHub Actions. It's `workflow_dispatch`-only (like
+`android-release.yml`) so deploy credentials never enter scope on a push or
+fork PR. Auth is keyless — Workload Identity Federation, provisioned in the
+private `sms-ingest-infra` repo (`github_deploy.tf`), lets the workflow
+impersonate a deployer SA scoped to just this repo, Artifact Registry push on
+the `sms-ingest` repo, and `run.developer` on this one Cloud Run service. No
+GCP key is stored in GitHub.
+
+### Manual (fallback)
 
 ```bash
 REGION=...            # e.g. us-central1
