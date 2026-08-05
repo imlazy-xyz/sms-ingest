@@ -1,0 +1,71 @@
+name: Backend Deploy
+
+# Manual only: builds the backend image, pushes a SHA-tagged copy to Artifact
+# Registry, and deploys it to Cloud Run by resolved digest. Kept off
+# push/pull_request (like android-release.yml) so deploy credentials are
+# never in scope for automatic or fork-triggered runs.
+#
+# Auth is keyless: Workload Identity Federation lets this workflow impersonate
+# the "sms-ingest-backend-deployer" SA without a stored key (Terraform-managed
+# in the private sms-ingest-infra repo, github_deploy.tf). Requires two repo
+# variables set once, from that Terraform's outputs:
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  (output: backend_deployer_wif_provider)
+#   GCP_DEPLOYER_SA                 (output: backend_deployer_sa_email)
+#
+# Terraform owns the Cloud Run service's env/secrets/scaling and ignores the
+# image field on purpose (decisions.md 2026-07-19) — this workflow only ever
+# changes the running image, matching infra/README.md's documented steps.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: us-central1
+  PROJECT_ID: sms-ingest-prod-215804
+  SERVICE: sms-ingest-backend
+  REPOSITORY: sms-ingest
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  build-push-deploy:
+    name: Build, push, and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push SHA-tagged image
+        id: image
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short HEAD)"
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/backend"
+          gcloud builds submit . --tag "${IMAGE}:${SHA}"
+          DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:${SHA}" \
+            --format='value(image_summary.digest)')"
+          echo "ref=${IMAGE}@${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run services update "${SERVICE}" \
+            --region "${REGION}" \
+            --image "${{ steps.image.outputs.ref }}"
