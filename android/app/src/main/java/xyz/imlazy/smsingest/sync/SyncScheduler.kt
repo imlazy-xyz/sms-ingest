@@ -10,9 +10,15 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
+import androidx.work.getWorkInfosForUniqueWorkFlow
+import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 /**
  * Schedules [SyncWorker]/[BackfillWorker] via WorkManager, per
@@ -69,12 +75,42 @@ class SyncScheduler(private val workManager: WorkManager) {
         workManager.enqueueUniqueWork(BACKFILL_WORK_NAME, ExistingWorkPolicy.KEEP, request)
     }
 
-    private companion object {
+    /**
+     * Testing-phase debugging affordance ([xyz.imlazy.smsingest.debug.SyncStatusScreen]):
+     * re-runs the historical inbox backfill even if [BackfillWorker] already
+     * marked it complete, bypassing [BackfillGate] via [BackfillWorker.KEY_FORCE].
+     * Re-reads and re-queues the whole inbox (wasteful, not incorrect — see
+     * `decisions.md` 2026-08-01 on why this isn't the default trigger path),
+     * so this is only ever invoked from an explicit user tap, never automatically.
+     */
+    fun forceBackfill() {
+        val request = OneTimeWorkRequestBuilder<BackfillWorker>()
+            .setInputData(workDataOf(BackfillWorker.KEY_FORCE to true))
+            .build()
+        workManager.enqueueUniqueWork(BACKFILL_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /**
+     * Latest [WorkInfo.State] ([WorkStatusAggregator]) per unique work name,
+     * for [xyz.imlazy.smsingest.debug.SyncStatusViewModel] to show whether
+     * WorkManager is actually running these workers at all — the direct test
+     * of the OEM-background-restriction hypothesis in `open-questions.md`.
+     */
+    fun observeWorkStates(): Flow<Map<String, WorkInfo.State?>> {
+        val names = listOf(PERIODIC_WORK_NAME, EXPEDITED_WORK_NAME, BACKFILL_WORK_NAME)
+        val perNameState = names.map { name ->
+            workManager.getWorkInfosForUniqueWorkFlow(name)
+                .map { infos -> name to WorkStatusAggregator.aggregate(infos.map(WorkInfo::state)) }
+        }
+        return combine(perNameState) { pairs -> pairs.toMap() }
+    }
+
+    companion object {
         const val PERIODIC_WORK_NAME = "sms-sync-periodic"
         const val EXPEDITED_WORK_NAME = "sms-sync-expedited"
         const val BACKFILL_WORK_NAME = "sms-backfill-once"
 
-        val NETWORK_CONSTRAINT: Constraints = Constraints.Builder()
+        private val NETWORK_CONSTRAINT: Constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
     }

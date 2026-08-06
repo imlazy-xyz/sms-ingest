@@ -1,6 +1,7 @@
 package xyz.imlazy.smsingest.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import xyz.imlazy.smsingest.SmsIngestApplication
@@ -27,9 +28,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             ingestApiProvider = container::createIngestApiOrNull,
             deviceInfoProvider = container.deviceInfoProvider,
         )
-        return when (syncer.sync()) {
+        val syncResult = syncer.sync()
+        Log.d(TAG, "doWork: $syncResult")
+        return when (syncResult) {
             SyncResult.SUCCESS, SyncResult.NOT_PROVISIONED -> Result.success()
             SyncResult.RETRY -> Result.retry()
         }
+    }
+
+    private companion object {
+        const val TAG = "SyncWorker"
     }
 }
