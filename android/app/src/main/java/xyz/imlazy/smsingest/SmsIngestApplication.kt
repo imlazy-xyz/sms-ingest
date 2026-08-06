@@ -3,12 +3,10 @@ package xyz.imlazy.smsingest
 import android.app.ActivityManager
 import android.app.Application
 import android.app.ApplicationExitInfo
-import android.content.ContentValues
-import android.content.ContentUris
-import android.provider.MediaStore
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant
+import xyz.imlazy.smsingest.debug.DownloadsFileLog
 
 class SmsIngestApplication : Application() {
 
@@ -61,7 +59,7 @@ class SmsIngestApplication : Application() {
                     appendLine("---")
                 }
             }
-            writeToDownloads("exit_reason.txt", text)
+            DownloadsFileLog.write(this, "exit_reason.txt", text)
         } catch (_: Throwable) {
             // Best-effort only.
         }
@@ -100,36 +98,11 @@ class SmsIngestApplication : Application() {
                 val writer = StringWriter()
                 throwable.printStackTrace(PrintWriter(writer))
                 val text = "${Instant.now()}\n$writer"
-                writeToDownloads("crash.txt", text)
+                DownloadsFileLog.write(this, "crash.txt", text)
             } catch (_: Throwable) {
                 // Best-effort only; never let logging itself block the real crash handling.
             }
             previousHandler?.uncaughtException(thread, throwable)
         }
-    }
-
-    private fun writeToDownloads(fileName: String, text: String) {
-        val resolver = contentResolver
-        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        // Delete any prior file with the same name first so repeated runs overwrite rather than pile up.
-        resolver.query(
-            collection,
-            arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.DISPLAY_NAME} = ?",
-            arrayOf(fileName),
-            null,
-        )?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                resolver.delete(ContentUris.withAppendedId(collection, id), null, null)
-            }
-        }
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, "text/plain")
-        }
-        val uri = resolver.insert(collection, values) ?: return
-        resolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
     }
 }
