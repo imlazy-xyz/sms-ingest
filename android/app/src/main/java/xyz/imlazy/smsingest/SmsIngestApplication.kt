@@ -1,7 +1,9 @@
 package xyz.imlazy.smsingest
 
 import android.app.Application
-import java.io.File
+import android.content.ContentValues
+import android.content.ContentUris
+import android.provider.MediaStore
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant
@@ -24,10 +26,12 @@ class SmsIngestApplication : Application() {
      * target device (`projects/sms-ingest/open-questions.md`), so an
      * uncaught crash otherwise leaves no readable trace. Writes the
      * exception (class, message, stack trace only — never SMS content or
-     * key material) to a plain-text file under the app's external files
-     * dir, readable via any file manager without adb, then hands off to
-     * whatever crash handler was previously installed so behavior is
-     * otherwise unchanged.
+     * key material) to a plain-text file in the public Downloads folder
+     * via MediaStore, readable via any file manager without adb (unlike
+     * the app's external-files dir under Android/data, which third-party
+     * file managers can't browse into since Android 11's scoped-storage
+     * lockdown). Then hands off to whatever crash handler was previously
+     * installed so behavior is otherwise unchanged.
      */
     private fun installCrashLogger() {
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
@@ -35,12 +39,37 @@ class SmsIngestApplication : Application() {
             try {
                 val writer = StringWriter()
                 throwable.printStackTrace(PrintWriter(writer))
-                val file = File(getExternalFilesDir(null), "crash.txt")
-                file.writeText("${Instant.now()}\n$writer")
+                val text = "${Instant.now()}\n$writer"
+                writeCrashLogToDownloads(text)
             } catch (_: Throwable) {
                 // Best-effort only; never let logging itself block the real crash handling.
             }
             previousHandler?.uncaughtException(thread, throwable)
         }
+    }
+
+    private fun writeCrashLogToDownloads(text: String) {
+        val resolver = contentResolver
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        // Delete any prior crash.txt first so repeated crashes overwrite rather than pile up.
+        resolver.query(
+            collection,
+            arrayOf(MediaStore.Downloads._ID),
+            "${MediaStore.Downloads.DISPLAY_NAME} = ?",
+            arrayOf("crash.txt"),
+            null,
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idColumn)
+                resolver.delete(ContentUris.withAppendedId(collection, id), null, null)
+            }
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, "crash.txt")
+            put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+        }
+        val uri = resolver.insert(collection, values) ?: return
+        resolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
     }
 }
