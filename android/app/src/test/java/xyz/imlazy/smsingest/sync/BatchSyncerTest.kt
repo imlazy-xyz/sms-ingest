@@ -52,6 +52,9 @@ private class FakePendingBatchDao(initial: List<PendingBatchEntity> = emptyList(
 
     override suspend fun getByState(state: String): List<PendingBatchEntity> =
         rows.values.filter { it.state == state }.sortedBy { it.createdAtEpochMillis }
+
+    override fun observeMostRecent(): Flow<PendingBatchEntity?> =
+        flowOf(rows.values.maxByOrNull { it.updatedAtEpochMillis })
 }
 
 private class FakeUploadedDedupeDao : UploadedDedupeDao {
@@ -61,6 +64,8 @@ private class FakeUploadedDedupeDao : UploadedDedupeDao {
     }
 
     override suspend fun exists(dedupeId: String): Boolean = inserted.any { it.dedupeId == dedupeId }
+
+    override fun observeCount(): Flow<Int> = flowOf(inserted.size)
 }
 
 private class FakeCredentialStore(

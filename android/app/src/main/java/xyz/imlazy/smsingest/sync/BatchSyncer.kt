@@ -1,5 +1,6 @@
 package xyz.imlazy.smsingest.sync
 
+import android.util.Log
 import java.io.IOException
 import java.time.Instant
 import java.util.Base64
@@ -35,11 +36,15 @@ enum class SyncResult { SUCCESS, RETRY, NOT_PROVISIONED }
  * response) leaves the batch `pending` with `retryCount`/`lastError` updated,
  * for [SyncWorker]'s WorkManager-managed exponential backoff to retry.
  *
- * Kept free of `android.*`/WorkManager types so it is unit-testable with
- * fakes; [SyncWorker] is the thin WorkManager adapter around this class, the
- * same split used elsewhere in this codebase
- * ([xyz.imlazy.smsingest.sms.SmsIngestor] vs. `SmsReceiver`,
- * [xyz.imlazy.smsingest.crypto.KeysetVerifier] vs. `SetupViewModel`).
+ * Kept free of WorkManager types so it is unit-testable with fakes;
+ * [SyncWorker] is the thin WorkManager adapter around this class, the same
+ * split used elsewhere in this codebase ([xyz.imlazy.smsingest.sms.SmsIngestor]
+ * vs. `SmsReceiver`, [xyz.imlazy.smsingest.crypto.KeysetVerifier] vs.
+ * `SetupViewModel`). Does use `android.util.Log` for debug-phase diagnostics
+ * (counts/states/error codes only, never message content — see the class's
+ * logging calls below); `app/build.gradle.kts`'s
+ * `testOptions.unitTests.isReturnDefaultValues` keeps that call safe under
+ * plain JVM unit tests.
  */
 class BatchSyncer(
     private val pendingBatchDao: PendingBatchDao,
@@ -63,6 +68,7 @@ class BatchSyncer(
         }
 
         val pending = pendingBatchDao.getByState(PendingBatchEntity.STATE_PENDING)
+        Log.d(TAG, "sync: ${pending.size} pending batch(es)")
         if (pending.isEmpty()) return SyncResult.SUCCESS
 
         val encryptor = BatchEncryptor.fromPublicKeysetJson(publicKeysetJson)
@@ -71,7 +77,9 @@ class BatchSyncer(
             val succeeded = uploadOne(batch, apiBaseUrl, serverKeyId, serverKeyPin, encryptor, ingestApi)
             if (!succeeded) anyFailed = true
         }
-        return if (anyFailed) SyncResult.RETRY else SyncResult.SUCCESS
+        val result = if (anyFailed) SyncResult.RETRY else SyncResult.SUCCESS
+        Log.d(TAG, "sync: finished, result=$result")
+        return result
     }
 
     private suspend fun uploadOne(
@@ -115,12 +123,19 @@ class BatchSyncer(
             pendingBatchDao.update(
                 batch.copy(state = PendingBatchEntity.STATE_SENT, updatedAtEpochMillis = System.currentTimeMillis()),
             )
+            // batchId is a random client-generated UUID, message count is a
+            // size — neither is SMS content, sender data, or key material.
+            Log.d(TAG, "batch ${batch.clientBatchId} uploaded: ${messages.size} message(s)")
             true
         } catch (exc: HttpException) {
-            markRetry(batch, "http_${exc.code()}")
+            val reason = "http_${exc.code()}"
+            Log.w(TAG, "batch ${batch.clientBatchId} failed: $reason")
+            markRetry(batch, reason)
             false
         } catch (exc: IOException) {
-            markRetry(batch, exc.javaClass.simpleName)
+            val reason = exc.javaClass.simpleName
+            Log.w(TAG, "batch ${batch.clientBatchId} failed: $reason")
+            markRetry(batch, reason)
             false
         }
     }
@@ -148,5 +163,6 @@ class BatchSyncer(
 
     companion object {
         const val PROTOCOL_VERSION = 1
+        private const val TAG = "BatchSyncer"
     }
 }

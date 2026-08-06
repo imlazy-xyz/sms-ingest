@@ -63,6 +63,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        // Several classes exercised by plain JVM unit tests (e.g. BatchSyncer)
+        // now call android.util.Log for debug-phase diagnostics; the stock
+        // android.jar test stub throws on any call unless this is set, since
+        // there's no Robolectric/instrumented runtime backing it here.
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures {
         compose = true
     }

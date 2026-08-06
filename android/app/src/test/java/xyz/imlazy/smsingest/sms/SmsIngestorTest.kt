@@ -28,9 +28,11 @@ private class FakePendingBatchDao : PendingBatchDao {
 
     override fun observeByState(state: String): Flow<List<PendingBatchEntity>> = flowOf(emptyList())
     override suspend fun getByState(state: String): List<PendingBatchEntity> = inserted.filter { it.state == state }
+    override fun observeMostRecent(): Flow<PendingBatchEntity?> = flowOf(inserted.lastOrNull())
 }
 
 private class FakeUploadedDedupeDao(private val existing: Set<String> = emptySet()) : UploadedDedupeDao {
+    override fun observeCount(): Flow<Int> = flowOf(existing.size)
     override suspend fun insert(entry: UploadedDedupeIdEntity) = Unit
     override suspend fun exists(dedupeId: String): Boolean = dedupeId in existing
 }

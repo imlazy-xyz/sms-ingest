@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.telephony.SmsMessage
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,6 +47,8 @@ class SmsReceiver : BroadcastReceiver() {
         if (messages.isNullOrEmpty()) return
         val captures = toCaptures(messages, intent)
         if (captures.isEmpty()) return
+        // Count only — never sender/body, per AGENTS.md's "no SMS content in logs" rule.
+        Log.d(TAG, "SMS_RECEIVED_ACTION: ${captures.size} message(s) captured")
 
         val container = (context.applicationContext as SmsIngestApplication).container
         val pendingResult = goAsync()
@@ -53,6 +56,7 @@ class SmsReceiver : BroadcastReceiver() {
             try {
                 container.smsIngestor.enqueue(captures)
                 container.syncScheduler.requestExpeditedSync()
+                Log.d(TAG, "queued and requested expedited sync")
             } finally {
                 pendingResult.finish()
             }
@@ -79,6 +83,7 @@ class SmsReceiver : BroadcastReceiver() {
         // Undocumented but widely-relied-upon multi-SIM extra key on the
         // SMS_RECEIVED intent; no stable public constant exists for it.
         const val EXTRA_SUBSCRIPTION = "subscription"
+        const val TAG = "SmsReceiver"
 
         val receiverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }

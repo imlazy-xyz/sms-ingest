@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import xyz.imlazy.smsingest.debug.SyncStatusScreen
+import xyz.imlazy.smsingest.debug.SyncStatusViewModel
 
 private val REQUIRED_PERMISSIONS = arrayOf(
     Manifest.permission.READ_SMS,
@@ -28,9 +32,20 @@ private val REQUIRED_PERMISSIONS = arrayOf(
     Manifest.permission.CAMERA,
 )
 
-/** Top-level setup flow: permission consent, then QR scan, then done. Drives [SetupViewModel]. */
+/**
+ * Top-level setup flow: permission consent, then QR scan, then done. Drives
+ * [SetupViewModel]. [statusViewModel] only backs the [SetupStep.Complete]
+ * screen's debug panel — this is also the screen reached on every reopen
+ * once a device is already provisioned (see [SetupViewModel]'s initial
+ * state), so it's the live "is sync actually happening" view, not just a
+ * one-shot post-scan confirmation.
+ */
 @Composable
-fun SetupScreen(viewModel: SetupViewModel, modifier: Modifier = Modifier) {
+fun SetupScreen(
+    viewModel: SetupViewModel,
+    statusViewModel: SyncStatusViewModel,
+    modifier: Modifier = Modifier,
+) {
     val step by viewModel.step.collectAsState()
 
     when (val current = step) {
@@ -47,7 +62,7 @@ fun SetupScreen(viewModel: SetupViewModel, modifier: Modifier = Modifier) {
             ScanErrorContent(message = current.message, onRetry = viewModel::retryScan, modifier = modifier)
 
         SetupStep.Complete ->
-            CompleteContent(modifier = modifier)
+            CompleteContent(statusViewModel = statusViewModel, modifier = modifier)
     }
 }
 
@@ -107,13 +122,18 @@ private fun VerifyingKeysetContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CompleteContent(modifier: Modifier = Modifier) {
-    CenteredColumn(modifier) {
+private fun CompleteContent(statusViewModel: SyncStatusViewModel, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
         Text(text = "Setup complete", style = MaterialTheme.typography.headlineSmall)
         Text(
             text = "Device provisioned. Syncing SMS in the background.",
             style = MaterialTheme.typography.bodyMedium,
         )
+        SyncStatusScreen(viewModel = statusViewModel)
     }
 }
 

@@ -29,4 +29,13 @@ interface PendingBatchDao {
     /** One-shot read for [xyz.imlazy.smsingest.sync.BatchSyncer], which processes a batch and moves on. */
     @Query("SELECT * FROM pending_batches WHERE state = :state ORDER BY createdAtEpochMillis ASC")
     suspend fun getByState(state: String): List<PendingBatchEntity>
+
+    /**
+     * Most recently touched batch across all states, for
+     * [xyz.imlazy.smsingest.debug.SyncStatusViewModel] to surface "last sync
+     * attempt" (timestamp/state/error/retry count) without caring whether
+     * that attempt ended up sent or still pending.
+     */
+    @Query("SELECT * FROM pending_batches ORDER BY updatedAtEpochMillis DESC LIMIT 1")
+    fun observeMostRecent(): Flow<PendingBatchEntity?>
 }
