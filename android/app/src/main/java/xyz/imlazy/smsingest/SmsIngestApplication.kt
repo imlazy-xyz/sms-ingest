@@ -1,6 +1,8 @@
 package xyz.imlazy.smsingest
 
+import android.app.ActivityManager
 import android.app.Application
+import android.app.ApplicationExitInfo
 import android.content.ContentValues
 import android.content.ContentUris
 import android.provider.MediaStore
@@ -16,9 +18,67 @@ class SmsIngestApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         installCrashLogger()
+        dumpLastExitReasonIfAbnormal()
         container = AppContainer(this)
         // Idempotent (ExistingPeriodicWorkPolicy.KEEP) — safe to call on every start.
         container.syncScheduler.ensurePeriodicSync()
+    }
+
+    /**
+     * Testing-phase-only: covers the case the uncaught-exception handler
+     * below can't — a silent app disappearance with no crash dialog is
+     * usually an ANR or the OS/OEM killing the process outright, neither
+     * of which ever reaches a Java exception handler. On the next launch,
+     * ask the platform why the previous process actually died
+     * (`ActivityManager.getHistoricalProcessExitReasons`, API 30+) and, if
+     * it wasn't a normal exit, write the reason/description and any
+     * available trace to the public Downloads folder.
+     */
+    private fun dumpLastExitReasonIfAbnormal() {
+        try {
+            val am = getSystemService(ActivityManager::class.java) ?: return
+            val reasons = am.getHistoricalProcessExitReasons(packageName, 0, 5)
+            val abnormal = reasons.filter {
+                it.reason != ApplicationExitInfo.REASON_USER_REQUESTED &&
+                    it.reason != ApplicationExitInfo.REASON_USER_STOPPED
+            }
+            if (abnormal.isEmpty()) return
+            val text = buildString {
+                for (info in abnormal) {
+                    appendLine("timestamp=${Instant.ofEpochMilli(info.timestamp)}")
+                    appendLine("reason=${info.reason} (${reasonName(info.reason)})")
+                    appendLine("status=${info.status}")
+                    appendLine("importance=${info.importance}")
+                    appendLine("description=${info.description}")
+                    try {
+                        info.traceInputStream?.use { stream ->
+                            appendLine("trace:")
+                            appendLine(stream.readBytes().toString(Charsets.UTF_8))
+                        }
+                    } catch (_: Throwable) {
+                        // Trace not always available (e.g. plain kills); reason/description alone is still useful.
+                    }
+                    appendLine("---")
+                }
+            }
+            writeToDownloads("exit_reason.txt", text)
+        } catch (_: Throwable) {
+            // Best-effort only.
+        }
+    }
+
+    private fun reasonName(reason: Int): String = when (reason) {
+        ApplicationExitInfo.REASON_ANR -> "ANR"
+        ApplicationExitInfo.REASON_CRASH -> "CRASH"
+        ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
+        ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
+        ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+        ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "PERMISSION_CHANGE"
+        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
+        ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "DEPENDENCY_DIED"
+        ApplicationExitInfo.REASON_OTHER -> "OTHER"
+        ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "INITIALIZATION_FAILURE"
+        else -> "UNKNOWN"
     }
 
     /**
@@ -40,7 +100,7 @@ class SmsIngestApplication : Application() {
                 val writer = StringWriter()
                 throwable.printStackTrace(PrintWriter(writer))
                 val text = "${Instant.now()}\n$writer"
-                writeCrashLogToDownloads(text)
+                writeToDownloads("crash.txt", text)
             } catch (_: Throwable) {
                 // Best-effort only; never let logging itself block the real crash handling.
             }
@@ -48,15 +108,15 @@ class SmsIngestApplication : Application() {
         }
     }
 
-    private fun writeCrashLogToDownloads(text: String) {
+    private fun writeToDownloads(fileName: String, text: String) {
         val resolver = contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        // Delete any prior crash.txt first so repeated crashes overwrite rather than pile up.
+        // Delete any prior file with the same name first so repeated runs overwrite rather than pile up.
         resolver.query(
             collection,
             arrayOf(MediaStore.Downloads._ID),
             "${MediaStore.Downloads.DISPLAY_NAME} = ?",
-            arrayOf("crash.txt"),
+            arrayOf(fileName),
             null,
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
@@ -66,7 +126,7 @@ class SmsIngestApplication : Application() {
             }
         }
         val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, "crash.txt")
+            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
             put(MediaStore.Downloads.MIME_TYPE, "text/plain")
         }
         val uri = resolver.insert(collection, values) ?: return
