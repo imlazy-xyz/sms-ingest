@@ -15,15 +15,18 @@ import android.provider.MediaStore
  * Android 11's scoped-storage lockdown).
  */
 object DownloadsFileLog {
+    /** Subfolder under Downloads all debug files land in, so they're grouped together and easy to find. */
+    private const val RELATIVE_PATH = "Download/sms-ingest-debug/"
+
     fun write(context: Context, fileName: String, text: String) {
         val resolver = context.contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        // Delete any prior file with the same name first so repeated runs overwrite rather than pile up.
+        // Delete any prior file with the same name+folder first so repeated runs overwrite rather than pile up.
         resolver.query(
             collection,
             arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.DISPLAY_NAME} = ?",
-            arrayOf(fileName),
+            "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?",
+            arrayOf(fileName, RELATIVE_PATH),
             null,
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
@@ -35,6 +38,7 @@ object DownloadsFileLog {
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
             put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+            put(MediaStore.Downloads.RELATIVE_PATH, RELATIVE_PATH)
         }
         val uri = resolver.insert(collection, values) ?: return
         resolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
