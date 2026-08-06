@@ -62,15 +62,57 @@ class SmsIngestor(
         }
         if (records.isEmpty()) return
 
-        val now = System.currentTimeMillis()
-        pendingBatchDao.insert(
-            PendingBatchEntity(
-                clientBatchId = UUID.randomUUID().toString(),
-                messagesJson = json.encodeToString(records),
-                state = PendingBatchEntity.STATE_PENDING,
-                createdAtEpochMillis = now,
-                updatedAtEpochMillis = now,
-            ),
-        )
+        // Split into size-bounded batches so no single `pending_batches` row's
+        // `messagesJson` can approach Android's ~2MB per-row CursorWindow limit
+        // — a full historical backfill in one row previously threw
+        // `SQLiteBlobTooBigException` the moment `getByState` tried to read it
+        // back for upload (see PendingBatchDao.deleteOversized). Bounding by
+        // encoded bytes, not message count, keeps the guarantee even for long
+        // concatenated-SMS bodies.
+        for (chunk in chunkBySize(records)) {
+            val now = System.currentTimeMillis()
+            pendingBatchDao.insert(
+                PendingBatchEntity(
+                    clientBatchId = UUID.randomUUID().toString(),
+                    messagesJson = json.encodeToString(chunk),
+                    state = PendingBatchEntity.STATE_PENDING,
+                    createdAtEpochMillis = now,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Greedily packs [records] into chunks whose serialized size stays under
+     * [MAX_BATCH_BYTES]. A single record larger than the cap still gets its own
+     * chunk (an SMS record can't realistically approach the CursorWindow limit,
+     * but the loop must always make progress).
+     */
+    private fun chunkBySize(records: List<SmsRecord>): List<List<SmsRecord>> {
+        val chunks = mutableListOf<List<SmsRecord>>()
+        var current = mutableListOf<SmsRecord>()
+        var currentBytes = 0
+        for (record in records) {
+            val recordBytes = json.encodeToString(record).encodeToByteArray().size
+            if (current.isNotEmpty() && currentBytes + recordBytes > MAX_BATCH_BYTES) {
+                chunks += current
+                current = mutableListOf()
+                currentBytes = 0
+            }
+            current += record
+            currentBytes += recordBytes
+        }
+        if (current.isNotEmpty()) chunks += current
+        return chunks
+    }
+
+    companion object {
+        /**
+         * Per-batch serialized-message budget. Comfortably under Android's
+         * ~2MB CursorWindow per-row limit even after JSON list framing and
+         * multi-byte bodies, and small enough to keep each upload request modest.
+         */
+        const val MAX_BATCH_BYTES = 256 * 1024
     }
 }

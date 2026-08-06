@@ -31,6 +31,25 @@ interface PendingBatchDao {
     suspend fun getByState(state: String): List<PendingBatchEntity>
 
     /**
+     * Deletes any row whose `messagesJson` is large enough to risk exceeding
+     * Android's per-row CursorWindow limit when [getByState] reads it back
+     * (`SQLiteBlobTooBigException`). Self-healing cleanup for pre-chunking
+     * rows: before [xyz.imlazy.smsingest.sms.SmsIngestor] split backfill into
+     * size-bounded batches, one un-chunked batch could hold the whole inbox
+     * in a single row and permanently crash every `SELECT *` on the table —
+     * including [getByState] and [getByClientBatchId], so the row can't even
+     * be read out one at a time to fix in place. `DELETE` never materializes
+     * the blob into a CursorWindow, so it succeeds where those throw.
+     *
+     * `length()` counts characters, not bytes; the caller's threshold stays
+     * well below the ~2MB byte limit to leave margin for multi-byte bodies,
+     * and well above any batch [SmsIngestor] now produces so it never deletes
+     * a validly-chunked row. Returns the number of rows deleted.
+     */
+    @Query("DELETE FROM pending_batches WHERE length(messagesJson) > :maxChars")
+    suspend fun deleteOversized(maxChars: Int): Int
+
+    /**
      * Row count only, for [xyz.imlazy.smsingest.debug.SyncStatusViewModel]'s
      * pending-count display. Deliberately not [observeByState]: a backfill
      * batch's `messagesJson` (the whole queued-SMS JSON blob) can exceed
