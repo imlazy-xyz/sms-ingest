@@ -34,6 +34,7 @@ class BackfillWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val captures = SmsBackfillReader(applicationContext).read()
         container.smsIngestor.enqueue(captures)
         credentialStore.markBackfillComplete()
+        container.syncScheduler.requestExpeditedSync()
         return Result.success()
     }
 }
