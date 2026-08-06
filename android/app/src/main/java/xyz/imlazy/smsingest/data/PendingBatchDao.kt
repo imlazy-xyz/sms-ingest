@@ -31,11 +31,34 @@ interface PendingBatchDao {
     suspend fun getByState(state: String): List<PendingBatchEntity>
 
     /**
+     * Row count only, for [xyz.imlazy.smsingest.debug.SyncStatusViewModel]'s
+     * pending-count display. Deliberately not [observeByState]: a backfill
+     * batch's `messagesJson` (the whole queued-SMS JSON blob) can exceed
+     * Android's per-row CursorWindow limit (`SQLiteBlobTooBigException`),
+     * and the UI only ever needed the count, never the rows.
+     */
+    @Query("SELECT COUNT(*) FROM pending_batches WHERE state = :state")
+    fun observeCountByState(state: String): Flow<Int>
+
+    /**
      * Most recently touched batch across all states, for
      * [xyz.imlazy.smsingest.debug.SyncStatusViewModel] to surface "last sync
      * attempt" (timestamp/state/error/retry count) without caring whether
-     * that attempt ended up sent or still pending.
+     * that attempt ended up sent or still pending. Projects out
+     * `messagesJson` for the same CursorWindow-size reason as
+     * [observeCountByState] — the UI never reads the message payload.
      */
-    @Query("SELECT * FROM pending_batches ORDER BY updatedAtEpochMillis DESC LIMIT 1")
-    fun observeMostRecent(): Flow<PendingBatchEntity?>
+    @Query(
+        "SELECT state, updatedAtEpochMillis, retryCount, lastError FROM pending_batches " +
+            "ORDER BY updatedAtEpochMillis DESC LIMIT 1",
+    )
+    fun observeMostRecentStatus(): Flow<PendingBatchStatus?>
 }
+
+/** Lightweight projection of [PendingBatchEntity] excluding `messagesJson`. */
+data class PendingBatchStatus(
+    val state: String,
+    val updatedAtEpochMillis: Long,
+    val retryCount: Int,
+    val lastError: String?,
+)

@@ -27,13 +27,13 @@ class SyncStatusViewModel(
 ) : ViewModel() {
 
     val uiState: StateFlow<SyncStatusUiState> = combine(
-        pendingBatchDao.observeByState(PendingBatchEntity.STATE_PENDING),
+        pendingBatchDao.observeCountByState(PendingBatchEntity.STATE_PENDING),
         uploadedDedupeDao.observeCount(),
-        pendingBatchDao.observeMostRecent(),
+        pendingBatchDao.observeMostRecentStatus(),
         syncScheduler.observeWorkStates(),
-    ) { pending, uploadedCount, mostRecent, workStates ->
+    ) { pendingCount, uploadedCount, mostRecent, workStates ->
         SyncStatusUiState(
-            pendingCount = pending.size,
+            pendingCount = pendingCount,
             uploadedCount = uploadedCount,
             lastAttemptAtEpochMillis = mostRecent?.updatedAtEpochMillis,
             lastAttemptState = mostRecent?.state,
