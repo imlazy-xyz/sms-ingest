@@ -111,7 +111,7 @@ private fun CompleteContent(modifier: Modifier = Modifier) {
     CenteredColumn(modifier) {
         Text(text = "Setup complete", style = MaterialTheme.typography.headlineSmall)
         Text(
-            text = "Device provisioned. Sync isn't implemented yet.",
+            text = "Device provisioned. Syncing SMS in the background.",
             style = MaterialTheme.typography.bodyMedium,
         )
     }
