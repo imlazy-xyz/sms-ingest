@@ -29,6 +29,11 @@ private class FakePendingBatchDao : PendingBatchDao {
 
     override fun observeByState(state: String): Flow<List<PendingBatchEntity>> = flowOf(emptyList())
     override suspend fun getByState(state: String): List<PendingBatchEntity> = inserted.filter { it.state == state }
+    override suspend fun deleteOversized(maxChars: Int): Int {
+        val before = inserted.size
+        inserted.retainAll { it.messagesJson.length <= maxChars }
+        return before - inserted.size
+    }
     override fun observeCountByState(state: String): Flow<Int> =
         flowOf(inserted.count { it.state == state })
     override fun observeMostRecentStatus(): Flow<PendingBatchStatus?> = flowOf(
@@ -119,6 +124,31 @@ class SmsIngestorTest {
         ingestor.enqueue(listOf(cap))
 
         assertTrue(pendingBatchDao.inserted.isEmpty())
+    }
+
+    @Test
+    fun `splits a large backfill into multiple size-bounded batches without losing messages`() = runTest {
+        val pendingBatchDao = FakePendingBatchDao()
+        val ingestor = SmsIngestor(pendingBatchDao, FakeUploadedDedupeDao(), FakeCredentialStore("secret"))
+
+        // Bodies large enough that the full set far exceeds one batch budget;
+        // distinct timestamps keep every capture a distinct dedupe id.
+        val bigBody = "x".repeat(40_000)
+        val captures = (0 until 20).map { capture(body = bigBody, epochMillis = 1_748_000_000_000 + it) }
+
+        ingestor.enqueue(captures)
+
+        assertTrue("expected the backfill to split", pendingBatchDao.inserted.size > 1)
+        pendingBatchDao.inserted.forEach { batch ->
+            assertTrue(
+                "each row must stay clear of the ~2MB CursorWindow limit",
+                batch.messagesJson.encodeToByteArray().size <= SmsIngestor.MAX_BATCH_BYTES + 10_000,
+            )
+        }
+        val totalMessages = pendingBatchDao.inserted.sumOf {
+            Regex(""""client_message_id"""").findAll(it.messagesJson).count()
+        }
+        assertEquals(20, totalMessages)
     }
 
     @Test

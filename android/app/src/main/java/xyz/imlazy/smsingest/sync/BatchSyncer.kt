@@ -67,6 +67,15 @@ class BatchSyncer(
             return SyncResult.NOT_PROVISIONED
         }
 
+        // Self-heal any pre-chunking oversized row before the SELECT * below,
+        // which would otherwise throw SQLiteBlobTooBigException and fail the
+        // whole sync (WorkManager swallows it into Result.failure). Its
+        // messages are dropped, recoverable via a forced re-backfill (now chunked).
+        val purged = pendingBatchDao.deleteOversized(MAX_ROW_CHARS)
+        if (purged > 0) {
+            Log.w(TAG, "purged $purged oversized pre-chunking batch(es) that would crash getByState")
+        }
+
         val pending = pendingBatchDao.getByState(PendingBatchEntity.STATE_PENDING)
         Log.d(TAG, "sync: ${pending.size} pending batch(es)")
         if (pending.isEmpty()) return SyncResult.SUCCESS
@@ -163,6 +172,15 @@ class BatchSyncer(
 
     companion object {
         const val PROTOCOL_VERSION = 1
+
+        /**
+         * Character-length threshold for [PendingBatchDao.deleteOversized].
+         * Above any batch [xyz.imlazy.smsingest.sms.SmsIngestor] now produces
+         * (bounded to [xyz.imlazy.smsingest.sms.SmsIngestor.MAX_BATCH_BYTES] ≈
+         * 256K chars) yet below the ~2MB-byte CursorWindow limit even for
+         * 4-byte-per-char bodies, so it only ever removes legacy un-chunked rows.
+         */
+        private const val MAX_ROW_CHARS = 400_000
         private const val TAG = "BatchSyncer"
     }
 }

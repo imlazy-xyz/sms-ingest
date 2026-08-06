@@ -15,6 +15,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -53,6 +54,12 @@ private class FakePendingBatchDao(initial: List<PendingBatchEntity> = emptyList(
 
     override suspend fun getByState(state: String): List<PendingBatchEntity> =
         rows.values.filter { it.state == state }.sortedBy { it.createdAtEpochMillis }
+
+    override suspend fun deleteOversized(maxChars: Int): Int {
+        val oversized = rows.values.filter { it.messagesJson.length > maxChars }.map { it.clientBatchId }
+        oversized.forEach { rows.remove(it) }
+        return oversized.size
+    }
 
     override fun observeCountByState(state: String): Flow<Int> =
         flowOf(rows.values.count { it.state == state })
@@ -277,6 +284,22 @@ class BatchSyncerTest {
         assertEquals(SyncResult.RETRY, result)
         assertEquals(PendingBatchEntity.STATE_PENDING, pendingBatchDao.rows.getValue("b1").state)
         assertEquals(PendingBatchEntity.STATE_SENT, pendingBatchDao.rows.getValue("b2").state)
+    }
+
+    @Test
+    fun `purges a pre-chunking oversized row instead of crashing, and still syncs the rest`() = runTest {
+        server.enqueue(MockResponse().setBody(acceptedBody()))
+        // A legacy un-chunked backfill row whose messagesJson would blow past
+        // the CursorWindow limit; getByState can never read it back out.
+        val oversized = pendingBatch("legacy", listOf(sampleMessage("m0").copy(body = "x".repeat(500_000))))
+        val normal = pendingBatch("b1", listOf(sampleMessage("m1")))
+        val pendingBatchDao = FakePendingBatchDao(listOf(oversized, normal))
+
+        val result = syncer(pendingBatchDao).sync()
+
+        assertEquals(SyncResult.SUCCESS, result)
+        assertFalse("oversized row must be purged", pendingBatchDao.rows.containsKey("legacy"))
+        assertEquals(PendingBatchEntity.STATE_SENT, pendingBatchDao.rows.getValue("b1").state)
     }
 
     @Test
