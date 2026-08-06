@@ -1,6 +1,7 @@
 package xyz.imlazy.smsingest.sync
 
 import android.content.Context
+import androidx.lifecycle.Observer
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -13,10 +14,11 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
-import androidx.work.getWorkInfosForUniqueWorkFlow
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
@@ -99,10 +101,25 @@ class SyncScheduler(private val workManager: WorkManager) {
     fun observeWorkStates(): Flow<Map<String, WorkInfo.State?>> {
         val names = listOf(PERIODIC_WORK_NAME, EXPEDITED_WORK_NAME, BACKFILL_WORK_NAME)
         val perNameState = names.map { name ->
-            workManager.getWorkInfosForUniqueWorkFlow(name)
-                .map { infos -> name to WorkStatusAggregator.aggregate(infos.map(WorkInfo::state)) }
+            observeUniqueWork(name).map { infos -> name to WorkStatusAggregator.aggregate(infos.map(WorkInfo::state)) }
         }
         return combine(perNameState) { pairs -> pairs.toMap() }
+    }
+
+    /**
+     * [WorkManager.getWorkInfosForUniqueWorkLiveData] as a [Flow], hand-bridged
+     * via [callbackFlow] rather than the `work-runtime-ktx` `getWorkInfosForUniqueWorkFlow`
+     * extension — the latter isn't present in this project's pinned `work` version
+     * (`libs.versions.toml`, Sept-2024-era per this repo's compileSdk-35 pinning
+     * convention). `Observer`/`LiveData` are already on the classpath transitively
+     * (WorkManager's own API surface returns `LiveData`), so this needs no new
+     * dependency.
+     */
+    private fun observeUniqueWork(uniqueWorkName: String): Flow<List<WorkInfo>> = callbackFlow {
+        val liveData = workManager.getWorkInfosForUniqueWorkLiveData(uniqueWorkName)
+        val observer = Observer<List<WorkInfo>> { trySend(it) }
+        liveData.observeForever(observer)
+        awaitClose { liveData.removeObserver(observer) }
     }
 
     companion object {
