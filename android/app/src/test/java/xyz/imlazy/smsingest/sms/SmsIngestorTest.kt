@@ -9,6 +9,7 @@ import org.junit.Test
 import xyz.imlazy.smsingest.crypto.DedupeId
 import xyz.imlazy.smsingest.data.PendingBatchDao
 import xyz.imlazy.smsingest.data.PendingBatchEntity
+import xyz.imlazy.smsingest.data.PendingBatchStatus
 import xyz.imlazy.smsingest.data.UploadedDedupeDao
 import xyz.imlazy.smsingest.data.UploadedDedupeIdEntity
 import xyz.imlazy.smsingest.setup.CredentialStore
@@ -28,7 +29,13 @@ private class FakePendingBatchDao : PendingBatchDao {
 
     override fun observeByState(state: String): Flow<List<PendingBatchEntity>> = flowOf(emptyList())
     override suspend fun getByState(state: String): List<PendingBatchEntity> = inserted.filter { it.state == state }
-    override fun observeMostRecent(): Flow<PendingBatchEntity?> = flowOf(inserted.lastOrNull())
+    override fun observeCountByState(state: String): Flow<Int> =
+        flowOf(inserted.count { it.state == state })
+    override fun observeMostRecentStatus(): Flow<PendingBatchStatus?> = flowOf(
+        inserted.lastOrNull()?.let {
+            PendingBatchStatus(it.state, it.updatedAtEpochMillis, it.retryCount, it.lastError)
+        },
+    )
 }
 
 private class FakeUploadedDedupeDao(private val existing: Set<String> = emptySet()) : UploadedDedupeDao {
