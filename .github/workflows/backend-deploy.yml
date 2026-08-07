@@ -53,16 +53,33 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+      # Pin the quota/billing project: WIF (external_account) credentials carry
+      # none, so gcloud API calls (the Cloud Run update below) can fail the
+      # serviceusage.services.use check without it, even with the IAM role
+      # granted.
+      - name: Pin gcloud quota project
+        run: gcloud config set billing/quota_project "${PROJECT_ID}"
+
+      # Build and push directly with Docker rather than `gcloud builds submit`.
+      # Cloud Build stages the source in an auto-created GCS bucket
+      # (${PROJECT_ID}_cloudbuild); under WIF the staging upload consistently
+      # fails a serviceusage.services.use/bucket-access check that neither
+      # roles/serviceusage.serviceUsageConsumer, roles/storage.admin on the
+      # bucket, nor an explicit quota project resolved. The deployer SA already
+      # holds roles/artifactregistry.writer (sms-ingest-infra github_deploy.tf),
+      # so pushing straight to Artifact Registry needs no extra IAM and drops
+      # the Cloud Build dependency entirely. Digest comes from the push (via
+      # docker inspect) so no gcloud Artifact Registry API call is needed.
       - name: Build and push SHA-tagged image
         id: image
         run: |
           set -euo pipefail
           SHA="$(git rev-parse --short HEAD)"
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/backend"
-          gcloud builds submit . --tag "${IMAGE}:${SHA}"
-          DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:${SHA}" \
-            --format='value(image_summary.digest)')"
-          echo "ref=${IMAGE}@${DIGEST}" >> "$GITHUB_OUTPUT"
+          docker build --tag "${IMAGE}:${SHA}" .
+          docker push "${IMAGE}:${SHA}"
+          REF="$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${SHA}")"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Cloud Run
         run: |
