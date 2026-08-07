@@ -53,13 +53,23 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+      # WIF-issued credentials carry no quota/billing project, so gcloud's GCS
+      # calls (Cloud Build's source-staging bucket) fail the
+      # serviceusage.services.use check even with the IAM role granted. Pin the
+      # quota project explicitly so the staging upload is billed/authorized
+      # against sms-ingest-prod. `config list` is a no-secret diagnostic.
+      - name: Pin gcloud quota project
+        run: |
+          gcloud config set billing/quota_project "${PROJECT_ID}"
+          gcloud config list
+
       - name: Build and push SHA-tagged image
         id: image
         run: |
           set -euo pipefail
           SHA="$(git rev-parse --short HEAD)"
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/backend"
-          gcloud builds submit . --tag "${IMAGE}:${SHA}"
+          gcloud builds submit . --project="${PROJECT_ID}" --tag "${IMAGE}:${SHA}"
           DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:${SHA}" \
             --format='value(image_summary.digest)')"
           echo "ref=${IMAGE}@${DIGEST}" >> "$GITHUB_OUTPUT"
