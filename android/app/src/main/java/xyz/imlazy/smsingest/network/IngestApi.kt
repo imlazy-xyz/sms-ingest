@@ -1,6 +1,7 @@
 package xyz.imlazy.smsingest.network
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -34,6 +35,12 @@ interface IngestApi {
 fun createIngestApi(baseUrl: String, deviceToken: () -> String?): IngestApi {
     val client = OkHttpClient.Builder()
         .addInterceptor(AuthInterceptor(deviceToken))
+        // Default 10s is too tight for a Cloud Run cold start (min-instances=0)
+        // combined with a large chunked batch (up to ~700 messages / 256K chars,
+        // MAX_BATCH_BYTES) taking a while to decrypt + insert server-side.
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
     val json = Json { ignoreUnknownKeys = true }
     return Retrofit.Builder()

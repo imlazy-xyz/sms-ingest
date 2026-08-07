@@ -204,36 +204,38 @@ def ingest_batch(
         )
 
         retention_days = app_config.get_retention_days(conn, ctx.retention_days_default)
-        accepted = duplicate = 0
         rejected: list[RejectedMessage] = []
+        to_insert: list[sms_records.RecordToInsert] = []
 
         for raw in messages:
             parsed, rej = _validate_message(raw)
             if rej is not None:
                 rejected.append(rej)
                 continue
-            expires_at = parsed.sms_received_at + timedelta(days=retention_days)
-            inserted = sms_records.insert_ignore_duplicate(
-                conn,
-                device_id=device.id,
-                upload_batch_id=batch_id,
-                dedupe_id=parsed.dedupe_id,
-                sms_received_at=parsed.sms_received_at,
-                direction=parsed.direction,
-                sender_enc=field_crypto.encrypt_field(ctx.field_aead, "sender", parsed.sender),
-                body_enc=field_crypto.encrypt_field(ctx.field_aead, "body", parsed.body),
-                thread_hint_enc=field_crypto.encrypt_field(
-                    ctx.field_aead, "thread_hint", parsed.thread_hint
-                ),
-                sim_info_enc=field_crypto.encrypt_field(
-                    ctx.field_aead, "sim_info", parsed.sim_info
-                ),
-                expires_at=expires_at,
+            to_insert.append(
+                sms_records.RecordToInsert(
+                    dedupe_id=parsed.dedupe_id,
+                    sms_received_at=parsed.sms_received_at,
+                    direction=parsed.direction,
+                    sender_enc=field_crypto.encrypt_field(ctx.field_aead, "sender", parsed.sender),
+                    body_enc=field_crypto.encrypt_field(ctx.field_aead, "body", parsed.body),
+                    thread_hint_enc=field_crypto.encrypt_field(
+                        ctx.field_aead, "thread_hint", parsed.thread_hint
+                    ),
+                    sim_info_enc=field_crypto.encrypt_field(
+                        ctx.field_aead, "sim_info", parsed.sim_info
+                    ),
+                    expires_at=parsed.sms_received_at + timedelta(days=retention_days),
+                )
             )
-            if inserted:
-                accepted += 1
-            else:
-                duplicate += 1
+
+        # One multi-row INSERT for the whole batch instead of one round-trip
+        # per message — see RecordToInsert's docstring for why.
+        inserted_ids = sms_records.insert_many_ignore_duplicates(
+            conn, device_id=device.id, upload_batch_id=batch_id, records=to_insert
+        )
+        accepted = len(inserted_ids)
+        duplicate = len(to_insert) - accepted
 
         status = "accepted" if not rejected else "partial"
         error_summary = (
