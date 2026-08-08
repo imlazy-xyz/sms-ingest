@@ -8,6 +8,34 @@ from uuid import UUID
 
 
 @dataclass(frozen=True)
+class User:
+    id: UUID
+    display_name: str
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class Number:
+    id: UUID
+    e164: str
+    user_id: UUID
+    label: str | None = None
+    iccid: str | None = None
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class SimAssignment:
+    id: UUID
+    device_id: UUID
+    sub_id: int
+    number_id: UUID
+    effective_from: datetime
+    effective_to: datetime | None = None
+    iccid: str | None = None
+
+
+@dataclass(frozen=True)
 class Device:
     id: UUID
     label: str
