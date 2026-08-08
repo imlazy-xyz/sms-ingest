@@ -7,7 +7,7 @@ never real device data.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -30,13 +30,18 @@ def _device(conn, keys, *, label="phone", raw="tok"):
     return Device(id=inserted["id"], label=label, status="active", token_prefix=prefix)
 
 
-def _ingest_with_sim(pg_conn, ctx, device, make_request, make_message, *, dedupe_id, sim_info):
+def _ingest_with_sim(
+    pg_conn, ctx, device, make_request, make_message, *, dedupe_id, sim_info, sms_received_at=None
+):
+    kwargs = {"dedupe_id": dedupe_id, "sim_info": sim_info}
+    if sms_received_at is not None:
+        kwargs["sms_received_at"] = sms_received_at
     ingestion.ingest_batch(
         pg_conn,
         ctx,
         device,
         make_request(
-            [make_message(dedupe_id=dedupe_id, sim_info=sim_info)],
+            [make_message(**kwargs)],
             client_batch_id=dedupe_id,
         ),
     )
@@ -269,7 +274,11 @@ def test_resolve_paginates_past_unmapped_prefix(pg_conn, ctx, keys, make_request
     number = numbers.insert(pg_conn, e164="+15550100001", user_id=user["id"])
     field_aead = field_crypto.load_field_aead(keys["field_json"])
 
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # Deterministic ordering: the 5 unmapped rows get strictly earlier
+    # timestamps than the mapped row, so `ORDER BY sms_received_at, id` puts
+    # the mapped row last — a broken single-page implementation (page_size=2)
+    # would fetch only the earliest unmapped rows and never reach it.
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
     for i in range(5):
         _ingest_with_sim(
             pg_conn,
@@ -279,16 +288,17 @@ def test_resolve_paginates_past_unmapped_prefix(pg_conn, ctx, keys, make_request
             make_message,
             dedupe_id=f"unmapped-prefix-{i}",
             sim_info=None,
+            sms_received_at=(base + timedelta(minutes=i)).isoformat(),
         )
-    # A later-timestamped, mapped row (would be past a small first page).
-    ingestion.ingest_batch(
+    _ingest_with_sim(
         pg_conn,
         ctx,
         device,
-        make_request(
-            [make_message(dedupe_id="mapped-tail", sim_info="42")],
-            client_batch_id="mapped-tail",
-        ),
+        make_request,
+        make_message,
+        dedupe_id="mapped-tail",
+        sim_info="42",
+        sms_received_at=(base + timedelta(days=1)).isoformat(),
     )
     sim_assignments.open_new(pg_conn, device_id=device.id, sub_id=42, number_id=number["id"])
 
