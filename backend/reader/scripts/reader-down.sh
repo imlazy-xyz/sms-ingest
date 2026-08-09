@@ -15,6 +15,11 @@ POD_NAME="sms-ingest-reader"
 DB_VOLUME="${POD_NAME}-db-data"
 PURGE="${1:-}"
 
+if [[ -n "${PURGE}" && "${PURGE}" != "--purge" ]]; then
+  echo "error: unrecognized argument '${PURGE}' (expected --purge or no argument)" >&2
+  exit 1
+fi
+
 if podman pod exists "${POD_NAME}"; then
   echo "==> Removing pod ${POD_NAME}"
   podman pod rm -f "${POD_NAME}"

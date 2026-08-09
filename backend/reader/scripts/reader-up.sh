@@ -61,12 +61,19 @@ podman run -d --pod "${POD_NAME}" --name "${DB_CONTAINER}" \
   docker.io/library/postgres:16-alpine
 
 echo "==> Waiting for Postgres to accept connections"
+db_ready=""
 for _ in $(seq 1 30); do
   if podman exec "${DB_CONTAINER}" pg_isready -U postgres >/dev/null 2>&1; then
+    db_ready=1
     break
   fi
   sleep 1
 done
+if [[ -z "${db_ready}" ]]; then
+  echo "error: Postgres (${DB_CONTAINER}) did not become ready within 30s." >&2
+  echo "Check logs with: podman logs ${DB_CONTAINER}" >&2
+  exit 1
+fi
 
 echo "==> Starting reader (${READER_CONTAINER})"
 # DATABASE_URL points at 127.0.0.1:5432 because reader/db share the pod's
