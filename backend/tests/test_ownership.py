@@ -464,6 +464,59 @@ def test_assign_sim_reassignment_closes_old_no_restamp(pg_conn, ctx, keys, make_
     assert row_new["owner_number_id"] == num_new["id"]
 
 
+def test_resolve_uses_effective_interval_not_current_after_reassignment(
+    pg_conn, ctx, keys, make_request, make_message
+):
+    """A backlog row can still be NULL when it's resolved *after* a
+    reassignment has already moved the currently-open interval to a
+    different number (e.g. a device syncing a late historical batch). It
+    must land on the number that was open when the message actually arrived,
+    not on whatever is open now — get_current() alone gets this wrong."""
+    device = _device(pg_conn, keys)
+    user = users.insert(pg_conn, display_name="Priya")
+    num_old = numbers.insert(pg_conn, e164="+15554000101", user_id=user["id"])
+    num_new = numbers.insert(pg_conn, e164="+15554000102", user_id=user["id"])
+    field_aead = field_crypto.load_field_aead(keys["field_json"])
+
+    # Open the old assignment, then immediately reassign — no messages exist
+    # yet, so neither resolve() call has anything to stamp.
+    curation.assign_sim(
+        pg_conn, field_aead, device_id=device.id, sub_id=9, number_id=num_old["id"]
+    )
+    curation.assign_sim(
+        pg_conn, field_aead, device_id=device.id, sub_id=9, number_id=num_new["id"]
+    )
+
+    # A backlog batch arrives *after* the reassignment, but its
+    # sms_received_at falls inside the now-closed old interval. Use the
+    # midpoint of the (short, back-to-back) closed interval rather than a
+    # fixed offset — the two assign_sim calls above run moments apart, so a
+    # multi-minute offset would overshoot effective_to and land in the new
+    # interval instead, defeating the point of the test.
+    old_interval = sim_assignments.list_for_device_sub(
+        pg_conn, device_id=device.id, sub_id=9
+    )[0]
+    assert old_interval["effective_to"] is not None
+    span = old_interval["effective_to"] - old_interval["effective_from"]
+    backdated = old_interval["effective_from"] + span / 2
+    _ingest_with_sim(
+        pg_conn,
+        ctx,
+        device,
+        make_request,
+        make_message,
+        dedupe_id="backlog1",
+        sim_info="9",
+        sms_received_at=backdated.isoformat(),
+    )
+
+    curation.resolve(pg_conn, field_aead, device_id=device.id)
+    row = pg_conn.execute(
+        "select owner_number_id from sms_records where dedupe_id='backlog1'"
+    ).fetchone()
+    assert row["owner_number_id"] == num_old["id"]
+
+
 # --- list_observed_sims -----------------------------------------------------
 
 

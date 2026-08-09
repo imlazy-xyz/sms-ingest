@@ -29,6 +29,23 @@ def get_current(
     ).fetchone()
 
 
+def list_for_device_sub(
+    conn: psycopg.Connection, *, device_id: UUID | str, sub_id: int
+) -> list[dict[str, Any]]:
+    """All assignment intervals for (device, subId), oldest first — for
+    picking the interval effective at a given message's own timestamp,
+    not just whichever is currently open (see curation._resolve_rows)."""
+    return conn.execute(
+        """
+        select id, device_id, sub_id, iccid, number_id, effective_from, effective_to
+        from sim_assignments
+        where device_id = %s and sub_id = %s
+        order by effective_from
+        """,
+        (device_id, sub_id),
+    ).fetchall()
+
+
 def get_by_id(conn: psycopg.Connection, assignment_id: UUID | str) -> dict[str, Any] | None:
     return conn.execute(
         """

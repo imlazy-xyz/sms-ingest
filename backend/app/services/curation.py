@@ -98,9 +98,15 @@ def _resolve_rows(
     is_restamp: bool,
 ) -> ResolveResult:
     result = ResolveResult(scanned=len(rows))
-    # Cache (device_id, sub_id) -> current number_id within this pass to avoid
-    # a repeat lookup per row.
-    cache: dict[tuple[str, int], UUID | None] = {}
+    # Cache (device_id, sub_id) -> full assignment interval history within
+    # this pass, to avoid a repeat lookup per row. Each row is matched against
+    # the interval effective at *its own* sms_received_at, not just whichever
+    # assignment happens to be open right now: a backlog row can be resolved
+    # after a reassignment has already moved the currently-open interval to a
+    # different number, and it must still land on the number that was current
+    # when the message actually arrived (see test_resolve_uses_effective_
+    # interval_not_current_after_reassignment).
+    cache: dict[tuple[str, int], list[dict[str, Any]]] = {}
 
     for row in rows:
         sub_id = _decrypt_sub_id(field_aead, row.get("sim_info_enc"))
@@ -113,11 +119,33 @@ def _resolve_rows(
 
         key = (str(row["device_id"]), sub_id)
         if key not in cache:
-            current = sim_assignments.get_current(
+            cache[key] = sim_assignments.list_for_device_sub(
                 conn, device_id=row["device_id"], sub_id=sub_id
             )
-            cache[key] = current["number_id"] if current is not None else None
-        number_id = cache[key]
+        at = row["sms_received_at"]
+        number_id = None
+        current_number_id = None
+        # Prefer the interval that strictly contains the message's own
+        # timestamp (a backlog row synced late must still land on whichever
+        # number was open when it was actually received, not on whatever is
+        # open now). But a message can also predate assignment tracking
+        # entirely — no interval's bounds cover it at all, most commonly a
+        # brand-new assignment's own targeted resolve, where every prior
+        # unstamped row predates the interval that was just opened for it.
+        # For that case there's no better answer than "whichever assignment
+        # is current", which is also exactly what a plain get_current() did
+        # before this function existed, so it stays the fallback rather than
+        # e.g. defaulting to the *earliest* known interval.
+        for iv in cache[key]:
+            if iv["effective_to"] is None:
+                current_number_id = iv["number_id"]
+            if iv["effective_from"] <= at and (
+                iv["effective_to"] is None or at < iv["effective_to"]
+            ):
+                number_id = iv["number_id"]
+                break
+        if number_id is None:
+            number_id = current_number_id
 
         if number_id is None:
             result.unmapped += 1
