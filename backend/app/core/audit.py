@@ -29,6 +29,11 @@ SIM_ASSIGNMENT_CORRECTED = "sim.assignment_corrected"
 SIM_REASSIGNED = "sim.reassigned"
 OWNERSHIP_RESOLVED = "ownership.resolved"
 
+# Reader (admin read-only UI) events. Every decrypt-read in the reader records
+# exactly one sanitized row of this type. Metadata is who/when/scope/counts
+# only — never SMS content, senders, bodies, tokens, or keys.
+READ_PERFORMED = "read.performed"
+
 ACTOR_DEVICE = "device"
 ACTOR_ADMIN = "admin"
 ACTOR_SYSTEM = "system"
