@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Unassigned — SMS Ingest Admin{% endblock %}
+{% block content %}
+<h1>Unassigned messages</h1>
+<p class="muted">Rows with no owner stamped yet — not curated, or the SIM's subId hasn't been assigned. This is a normal state, not an error.</p>
+
+<form method="get" action="/unassigned">
+  <label>Device:
+    <select name="device_id" onchange="this.form.submit()">
+      <option value="">All devices</option>
+      {% for row in devices %}
+      <option value="{{ row.device.id }}" {% if device_id and device_id|string == row.device.id|string %}selected{% endif %}>
+        {{ row.device.label }} ({{ row.unassigned_count }})
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+</form>
+
+<p>{{ page.total }} unassigned message(s){% if device_id %} for this device{% endif %}.</p>
+
+{% if not page.messages %}
+<p class="empty">Nothing unassigned{% if device_id %} for this device{% endif %}.</p>
+{% else %}
+<table>
+<thead><tr><th>Received</th><th>Device</th><th>Raw subId</th><th>From</th><th>Preview</th></tr></thead>
+<tbody>
+{% for m in page.messages %}
+<tr>
+  <td>{{ m.received_at }}</td>
+  <td><a href="/devices/{{ m.device_id }}">{{ m.device_id }}</a></td>
+  <td>{{ m.sub_id if m.sub_id is not none else "(none captured)" }}</td>
+  <td>{{ m.sender }}</td>
+  <td>{{ m.preview }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% if page.next_cursor %}
+<p>
+  <a href="/unassigned?{% if device_id %}device_id={{ device_id }}&{% endif %}after_ts={{ page.next_cursor[0].isoformat() }}&after_id={{ page.next_cursor[1] }}">
+    Next page &rarr;
+  </a>
+</p>
+{% endif %}
+{% endif %}
+{% endblock %}

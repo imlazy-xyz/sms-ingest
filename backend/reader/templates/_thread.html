@@ -1,0 +1,25 @@
+<!-- htmx partial: a fluid thread window. Rendered inline into #thread-pane,
+     not extending base.html, since it's swapped into an already-loaded page.
+     "Load more" replaces #thread-messages (not #thread-pane) so the header
+     above it doesn't get duplicated by the append. -->
+<h2>{{ window.counterparty }}</h2>
+<div id="thread-messages">
+{% if not window.messages %}
+<p class="empty">No messages in this window.</p>
+{% else %}
+{% for m in window.messages %}
+<div class="message">
+  <div class="meta">{{ m.received_at }} &middot; device {{ m.device_id }}</div>
+  <div>{{ m.body }}</div>
+</div>
+{% endfor %}
+{% endif %}
+{% if window.has_more %}
+<button
+  hx-get="/numbers/{{ number_id }}/thread?counterparty={{ window.counterparty | urlencode }}&offset={{ window.next_offset }}"
+  hx-target="#thread-messages"
+  hx-swap="outerHTML">
+  Load more
+</button>
+{% endif %}
+</div>
