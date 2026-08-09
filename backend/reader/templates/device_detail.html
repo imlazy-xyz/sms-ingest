@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ device.label }} — SMS Ingest Admin{% endblock %}
+{% block content %}
+<p class="muted"><a href="/devices">&larr; Devices</a></p>
+<h1>{{ device.label }} <span class="badge">{{ device.status }}</span></h1>
+<p class="muted">Last seen: {{ device.last_seen_at or "never" }}{% if device.revoked_at %} &middot; revoked {{ device.revoked_at }}{% endif %}</p>
+<p>{{ message_count }} messages total{% if unassigned_count %} &middot; <a href="/unassigned?device_id={{ device.id }}">{{ unassigned_count }} unassigned</a>{% endif %}</p>
+
+<h2>SIM assignments</h2>
+<!-- Write slot (designed-in, empty): "assign SIM" would go here. -->
+{% if not assignments %}
+<p class="empty">No SIM assignments curated for this device yet.</p>
+{% else %}
+<table>
+<thead><tr><th>Sub ID</th><th>ICCID</th><th>Number</th><th>Effective from</th><th>Effective to</th></tr></thead>
+<tbody>
+{% for a in assignments %}
+<tr>
+  <td>{{ a.sub_id }}</td>
+  <td>{{ a.iccid or "" }}</td>
+  <td>{% if a.number %}<a href="/numbers/{{ a.number.id }}">{{ a.number.e164 }}</a>{% else %}&mdash;{% endif %}</td>
+  <td>{{ a.effective_from }}</td>
+  <td>{{ a.effective_to or "(current)" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endblock %}
