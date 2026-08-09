@@ -158,9 +158,15 @@ def number_thread(
             conn, ctx.field_aead, number_id, counterparty, offset=offset, limit=limit
         )
         _audit_read(conn, operator, window.scope)
+    # offset==0 is the initial "click a conversation" load: render the h2 +
+    # wrapper. offset>0 is a "load more" continuation, whose target is the
+    # load-more button itself (hx-target="this", see _thread_messages.html)
+    # -- returning the wrapper again would nest a second #thread-messages
+    # div inside the first instead of appending the new page after it.
+    template = "_thread.html" if offset == 0 else "_thread_messages.html"
     return templates.TemplateResponse(
         request,
-        "_thread.html",
+        template,
         {"number_id": number_id, "window": window},
     )
 

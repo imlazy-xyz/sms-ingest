@@ -150,6 +150,33 @@ def test_thread_partial_renders_messages_newest_first(reader_client, seeded_numb
     assert rows[0]["metadata"]["message_count"] == 2
 
 
+def test_thread_load_more_appends_without_duplicating_header(reader_client, seeded_number):
+    """thread_window(offset=N) returns only that page's slice (not
+    cumulative), so a 'load more' continuation (offset>0) must render the
+    bare messages+button fragment, not the full h2-wrapped partial -- else
+    the htmx outerHTML swap on the button would nest a second header/wrapper
+    instead of appending the new page after what's already on screen."""
+    number_id = seeded_number["number"]["id"]
+
+    initial = reader_client.get(
+        f"/numbers/{number_id}/thread",
+        params={"counterparty": "+15550001111", "limit": 1},
+    )
+    assert initial.status_code == 200
+    assert "<h2>" in initial.text
+    assert "second message" in initial.text  # newest-first page 1 (12:05 > 12:00)
+    assert "Load more" in initial.text
+
+    continuation = reader_client.get(
+        f"/numbers/{number_id}/thread",
+        params={"counterparty": "+15550001111", "limit": 1, "offset": 1},
+    )
+    assert continuation.status_code == 200
+    assert "<h2>" not in continuation.text
+    assert "hello from carrier" in continuation.text  # older message, page 2
+    assert "second message" not in continuation.text  # page 2 only has its own slice
+
+
 def test_search_within_number_finds_match(reader_client, seeded_number, pg_conn):
     number_id = seeded_number["number"]["id"]
     resp = reader_client.get(f"/numbers/{number_id}/search", params={"q": "different"})
