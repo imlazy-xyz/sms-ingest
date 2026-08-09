@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ number.e164 }} — SMS Ingest Admin{% endblock %}
+{% block content %}
+<p class="muted">
+  <a href="/users/{{ owner.id }}">&larr; {{ owner.display_name }}</a>
+</p>
+<h1>{{ number.e164 }}{% if number.label %} <span class="muted">({{ number.label }})</span>{% endif %}</h1>
+<div class="search-box">
+  <input
+    type="search"
+    name="q"
+    placeholder="Search within: {{ number.e164 }}"
+    hx-get="/numbers/{{ number.id }}/search"
+    hx-trigger="input changed delay:400ms, search"
+    hx-target="#thread-pane"
+    hx-swap="innerHTML">
+  <span class="scope-label">Scope: this number only. Clear the box to return to the conversation list.</span>
+</div>
+<div class="reading-view">
+  <div class="conversation-list">
+    {% if not conversations %}
+    <p class="empty">No conversations yet.</p>
+    {% else %}
+    <ul>
+    {% for c in conversations %}
+      <li>
+        <a href="#"
+           hx-get="/numbers/{{ number.id }}/thread?counterparty={{ c.counterparty | urlencode }}"
+           hx-target="#thread-pane"
+           hx-swap="innerHTML">
+          <strong>{{ c.counterparty }}</strong>
+          <div class="muted">{{ c.preview }}</div>
+          <div class="muted">{{ c.message_count }} messages &middot; {{ c.last_received_at }}</div>
+        </a>
+      </li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  <div class="thread-pane" id="thread-pane">
+    <p class="empty">Select a conversation to read it.</p>
+  </div>
+</div>
+{% endblock %}

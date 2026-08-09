@@ -1,0 +1,17 @@
+<!-- htmx partial: scoped search results within one number's window. -->
+{% if not results.query %}
+<p class="empty">Select a conversation to read it, or type above to search within: {{ number_id }}.</p>
+{% else %}
+<h2>Search: "{{ results.query }}"</h2>
+<p class="scope-label">{{ results.scope_label }}{% if results.truncated %} &middot; results truncated, narrow the scope for more{% endif %}</p>
+{% if not results.messages %}
+<p class="empty">No matches.</p>
+{% else %}
+{% for m in results.messages %}
+<div class="message">
+  <div class="meta">{{ m.sender }} &middot; {{ m.received_at }} &middot; device {{ m.device_id }}</div>
+  <div>{{ m.body }}</div>
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}

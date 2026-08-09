@@ -1,0 +1,11 @@
+<!-- htmx partial for the *initial* load of a thread (offset=0), rendered
+     into #thread-pane. Subsequent "load more" clicks hit the same route with
+     offset>0 and get _thread_messages.html directly (see reader/routers.py),
+     which swaps `this` (the load-more button) via outerHTML -- appending the
+     new page after the existing messages instead of replacing them, since
+     thread_window(offset=N) returns only that page's slice, not a
+     cumulative one. -->
+<h2>{{ window.counterparty }}</h2>
+<div id="thread-messages">
+{% include "_thread_messages.html" %}
+</div>
