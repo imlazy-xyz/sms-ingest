@@ -1,0 +1,59 @@
+# Podman-kube spec for local reader bring-up: `podman kube play`.
+#
+# Declarative reference only — scripts/reader-up.sh is the source of truth for
+# the loopback-only guarantee (see that script for why: podman 4.x's `kube play`
+# support for `ports[].hostIP` is inconsistent across versions, so the up/down
+# script publishes the port explicitly with `podman run -p 127.0.0.1:...` rather
+# than relying on this file's hostIP being honored). Use this file to see the
+# pod topology at a glance, or with `podman kube play` on a podman version you've
+# confirmed honors hostIP; use the script for anything you need to trust.
+#
+# Both containers share one pod network namespace, so the reader reaches
+# Postgres at 127.0.0.1:5432 inside the pod (not a service DNS name).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sms-ingest-reader
+spec:
+  containers:
+    - name: reader
+      image: sms-ingest-reader:local
+      ports:
+        - containerPort: 8081
+          hostPort: 8081
+          hostIP: 127.0.0.1
+      env:
+        - name: DATABASE_URL
+          value: postgresql://postgres:postgres@127.0.0.1:5432/sms_ingest
+        - name: READER_PORT
+          value: "8081"
+        # TINK_PRIVATE_KEYSET_JSON, FIELD_ENCRYPTION_KEY, TINK_PUBLIC_KEYSET_JSON,
+        # SERVER_KEY_ID come from the podman secret referenced below — never
+        # inlined here. `podman kube play` has no --env-file flag, so the secret
+        # must be created out of band first, e.g.:
+        #   podman secret create sms-ingest-reader-env reader/.env
+        # (scripts/reader-up.sh sidesteps this entirely by using --env-file on
+        # `podman run`, which is why it is the supported path.)
+      envFrom:
+        - secretRef:
+            name: sms-ingest-reader-env
+    - name: reader-db
+      image: docker.io/library/postgres:16-alpine
+      ports:
+        - containerPort: 5432
+          hostPort: 5432
+          hostIP: 127.0.0.1
+      env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: postgres
+        - name: POSTGRES_DB
+          value: sms_ingest
+      volumeMounts:
+        - name: reader-db-data
+          mountPath: /var/lib/postgresql/data
+  volumes:
+    - name: reader-db-data
+      persistentVolumeClaim:
+        claimName: sms-ingest-reader-db-data

@@ -1,0 +1,26 @@
+# Build-context exclusions for Podman image builds from `backend/`
+# (used by reader/Containerfile; Podman reads .containerignore).
+#
+# The first block is load-bearing for security: reader/Containerfile does
+# `COPY reader ./reader`, which would otherwise bake a developer's local
+# reader/.env — real keyset material and database URL — into the image.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Not needed at runtime; keeps the image small and the context clean.
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/
+dist/
+build/
+*.log
