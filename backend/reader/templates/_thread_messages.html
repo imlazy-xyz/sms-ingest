@@ -1,0 +1,23 @@
+<!-- One page of thread messages + a "load more" trigger. Included by
+     _thread.html for the initial render, and returned directly (without the
+     h2/#thread-messages wrapper) for "load more" continuation requests, so
+     the outerHTML swap on the button appends this page after what's already
+     on screen rather than replacing it. -->
+{% if not window.messages %}
+<p class="empty">No messages in this window.</p>
+{% else %}
+{% for m in window.messages %}
+<div class="message">
+  <div class="meta">{{ m.received_at }} &middot; device {{ m.device_id }}</div>
+  <div>{{ m.body }}</div>
+</div>
+{% endfor %}
+{% endif %}
+{% if window.has_more %}
+<button
+  hx-get="/numbers/{{ number_id }}/thread?counterparty={{ window.counterparty | urlencode }}&offset={{ window.next_offset }}"
+  hx-target="this"
+  hx-swap="outerHTML">
+  Load more
+</button>
+{% endif %}

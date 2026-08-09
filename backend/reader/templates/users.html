@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Users — SMS Ingest Admin{% endblock %}
+{% block content %}
+<h1>Users</h1>
+{% if not users %}
+<p class="empty">No users yet.</p>
+{% else %}
+<table>
+<thead><tr><th>Name</th><th>Numbers</th><th>Messages</th></tr></thead>
+<tbody>
+{% for row in users %}
+<tr>
+  <td><a href="/users/{{ row.user.id }}">{{ row.user.display_name }}</a></td>
+  <td>{{ row.numbers | length }}</td>
+  <td>{{ row.message_count }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endblock %}
