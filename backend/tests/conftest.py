@@ -184,7 +184,8 @@ def pg_conn(settings):
     try:
         db.apply_migrations(conn)
         conn.execute(
-            "truncate audit_events, sms_records, upload_batches, devices "
+            "truncate audit_events, sim_assignments, sms_records, numbers, users, "
+            "upload_batches, devices "
             "restart identity cascade"
         )
         yield conn

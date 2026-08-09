@@ -1,17 +1,25 @@
 """Admin CLI for the SMS ingest backend (v1, no web admin UI).
 
 Commands:
-  gen-keys        Generate Tink keysets + pepper and print env-ready values.
-  migrate         Apply SQL migrations to DATABASE_URL.
-  create-device   Create a device and print its one-time QR provisioning JSON.
-  revoke-device   Revoke a device token.
-  rotate-token    Rotate a device's bearer token (keeps dedupe secret) and print QR.
-  show-retention  Print the configured retention window (days).
-  set-retention   Update the retention window (days).
-  run-retention   Delete expired SMS records (idempotent) and audit the deletion.
+  gen-keys            Generate Tink keysets + pepper and print env-ready values.
+  migrate             Apply SQL migrations to DATABASE_URL.
+  create-device       Create a device and print its one-time QR provisioning JSON.
+  revoke-device       Revoke a device token.
+  rotate-token        Rotate a device's bearer token (keeps dedupe secret) and print QR.
+  show-retention      Print the configured retention window (days).
+  set-retention       Update the retention window (days).
+  run-retention       Delete expired SMS records (idempotent) and audit the deletion.
+  create-user         Create a user (display name only).
+  create-number       Create a number (e164) owned by a user.
+  assign-sim          Curate a (device, subId) -> number mapping.
+  apply-curation      Apply a batch of assign-sim directives from a JSON seed file.
+  list-observed-sims  Enumerate distinct (device, subId) pairs seen for a device.
+  resolve             Stamp owner_number_id on sms_records from current assignments.
 
 Secrets (QR payloads, keysets, pepper) are printed to stdout for one-time use.
-Do not log, commit, or store them.
+Do not log, commit, or store them. Ownership curation output (subIds,
+resolve counts) is non-sensitive metadata, not SMS content — but never print
+decrypted sender/body/thread_hint here.
 """
 
 from __future__ import annotations
@@ -28,9 +36,9 @@ from tink import aead, cleartext_keyset_handle, hybrid
 
 from app import db
 from app.config import get_settings
-from app.core import crypto, retention
+from app.core import crypto, field_crypto, retention
 from app.repositories import app_config
-from app.services import provisioning
+from app.services import curation, provisioning
 
 
 def _keyset_to_compact_json(handle: tink.KeysetHandle) -> str:
@@ -126,6 +134,105 @@ def cmd_run_retention(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _field_aead(settings) -> aead.Aead:
+    return field_crypto.load_field_aead(settings.require("field_encryption_key"))
+
+
+def cmd_create_user(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with db.connection(settings) as conn:
+        row = curation.create_user(conn, display_name=args.display_name)
+    print(json.dumps({"id": str(row["id"]), "display_name": row["display_name"]}))
+    return 0
+
+
+def cmd_create_number(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with db.connection(settings) as conn:
+        row = curation.create_number(
+            conn,
+            e164=args.e164,
+            user_id=args.user_id,
+            label=args.label,
+            iccid=args.iccid,
+        )
+    print(
+        json.dumps(
+            {
+                "id": str(row["id"]),
+                "e164": row["e164"],
+                "user_id": str(row["user_id"]),
+                "label": row["label"],
+            }
+        )
+    )
+    return 0
+
+
+def cmd_assign_sim(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with db.connection(settings) as conn:
+        result = curation.assign_sim(
+            conn,
+            _field_aead(settings),
+            device_id=args.device_id,
+            sub_id=args.sub_id,
+            number_id=args.number_id,
+            correction=args.correction,
+        )
+    print(json.dumps({"operation": result["operation"]}))
+    return 0
+
+
+def cmd_apply_curation(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with open(args.file, encoding="utf-8") as f:
+        entries = json.load(f)
+    if not isinstance(entries, list):
+        print("seed file must contain a JSON list", file=sys.stderr)
+        return 1
+    with db.connection(settings) as conn:
+        results = curation.apply_curation_seed(conn, _field_aead(settings), entries)
+    print(json.dumps({"applied": len(results)}))
+    return 0
+
+
+def cmd_list_observed_sims(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with db.connection(settings) as conn:
+        sub_ids = curation.list_observed_sims(conn, _field_aead(settings), args.device_id)
+    print(json.dumps({"device_id": args.device_id, "sub_ids": sub_ids}))
+    return 0
+
+
+def cmd_resolve(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with db.connection(settings) as conn:
+        if args.restamp:
+            result = curation.resolve_restamp(
+                conn,
+                _field_aead(settings),
+                device_id=args.device_id,
+                number_id=args.number_id,
+            )
+        else:
+            if args.number_id is not None:
+                print("--number is only valid with --restamp", file=sys.stderr)
+                return 1
+            result = curation.resolve(conn, _field_aead(settings), device_id=args.device_id)
+    print(
+        json.dumps(
+            {
+                "scanned": result.scanned,
+                "stamped": result.stamped,
+                "cleared": result.cleared,
+                "unmapped": result.unmapped,
+            }
+        )
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sms-ingest-admin", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -152,6 +259,56 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_set_retention)
 
     sub.add_parser("run-retention", help="Delete expired SMS records.").set_defaults(func=cmd_run_retention)
+
+    p = sub.add_parser("create-user", help="Create a user.")
+    p.add_argument("--display-name", required=True)
+    p.set_defaults(func=cmd_create_user)
+
+    p = sub.add_parser("create-number", help="Create a number owned by a user.")
+    p.add_argument("--e164", required=True)
+    p.add_argument("--user-id", required=True)
+    p.add_argument("--label")
+    p.add_argument("--iccid")
+    p.set_defaults(func=cmd_create_number)
+
+    p = sub.add_parser(
+        "assign-sim",
+        help="Curate a (device, subId) -> number mapping. Picks new/correction/"
+        "reassignment by case; use --correction to mark a mislabel fix.",
+    )
+    p.add_argument("--device-id", required=True)
+    p.add_argument("--sub-id", required=True, type=int)
+    p.add_argument("--number-id", required=True)
+    p.add_argument(
+        "--correction",
+        action="store_true",
+        help="An open assignment already exists and was mislabeled; mutate it "
+        "in place and restamp, instead of treating this as a reassignment.",
+    )
+    p.set_defaults(func=cmd_assign_sim)
+
+    p = sub.add_parser(
+        "apply-curation", help="Apply assign-sim directives from a JSON seed file."
+    )
+    p.add_argument("--file", required=True, help="Path to a JSON list of directives.")
+    p.set_defaults(func=cmd_apply_curation)
+
+    p = sub.add_parser(
+        "list-observed-sims", help="Enumerate distinct (device, subId) pairs for a device."
+    )
+    p.add_argument("--device-id", required=True)
+    p.set_defaults(func=cmd_list_observed_sims)
+
+    p = sub.add_parser(
+        "resolve",
+        help="Stamp owner_number_id on sms_records. Default: only NULL rows. "
+        "--restamp: recompute already-stamped rows too (mislabel correction).",
+    )
+    p.add_argument("--device-id", help="Scope to a device.")
+    p.add_argument("--restamp", action="store_true", help="Recompute already-stamped rows.")
+    p.add_argument("--number", dest="number_id", help="Scope --restamp to a current owner number.")
+    p.set_defaults(func=cmd_resolve)
+
     return parser
 
 
