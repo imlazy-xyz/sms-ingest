@@ -12,13 +12,13 @@
 #
 # ASSUMPTION for the integrator (backend/reader/main.py does not exist yet at
 # packaging time — see reader/README.md "Entrypoint assumptions"): the reader
-# ASGI app object is importable as `reader.main:app`, and `reader` is either
-# (a) added to `[tool.setuptools].packages` in backend/pyproject.toml so
-# `pip install .` installs it alongside `app`/`cli`, or (b) copied in below and
-# run via PYTHONPATH instead of an installed package. This Containerfile takes
-# option (b) so it does not depend on a pyproject.toml change the integrator
-# hasn't made yet; switch to `pip install .` + drop the COPY/PYTHONPATH lines
-# once `reader` is a declared package.
+# ASGI app object is importable as `reader.main:app`. `reader` is deliberately
+# NOT added to `[tool.setuptools].packages` in backend/pyproject.toml -- that
+# was tried and reverted (sms-ingest#38): the packages list is shared with
+# backend/Dockerfile, which builds the separate Cloud Run ingest image and
+# never copies reader/, so declaring it there broke that build's
+# `pip install .` the moment this branch merged. Copied in below instead and
+# run via PYTHONPATH -- this is the permanent shape, not a placeholder.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -56,4 +56,11 @@ EXPOSE 8081
 # reader-pod.yaml), not by uvicorn's --host. Binding uvicorn itself to 127.0.0.1
 # here would make it unreachable through podman's port-forward from the host
 # netns. Shell form + exec so SIGTERM reaches uvicorn for graceful shutdown.
-CMD exec uvicorn reader.main:app --host 0.0.0.0 --port ${READER_PORT}
+#
+# --no-access-log: some reader routes (e.g. GET /numbers/{id}/thread) put a
+# decrypted counterparty phone number in the query string (sms-ingest#39
+# review). This is a MITIGATION, not a fix -- it stops uvicorn's default
+# access logger from persisting it, but the value still transits as a URL
+# (visible to browser history, any intermediary). Left as a follow-up: switch
+# that route to POST or an opaque per-thread id instead of `?counterparty=`.
+CMD exec uvicorn reader.main:app --host 0.0.0.0 --port ${READER_PORT} --no-access-log
