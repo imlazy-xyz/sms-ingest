@@ -238,6 +238,53 @@ def test_unassigned_bucket_shows_unowned_message(
     assert rows[0]["metadata"]["scope"]["view"] == "unassigned"
 
 
+def test_unassigned_next_page_link_urlencodes_the_cursor():
+    """The 'Next page' link embeds an isoformat() timestamp (tz-aware, so it
+    always has a +00:00-style offset) directly in a query string. Un-encoded,
+    a literal '+' is sent as-is and most servers decode '+' in a query string
+    as a space, so datetime.fromisoformat() on the next request throws and
+    the page 500s. Render the template directly with a page.next_cursor set,
+    rather than needing 100+ unassigned rows through the real pipeline to
+    force pagination via the live route."""
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from urllib.parse import unquote
+    from uuid import uuid4
+
+    from fastapi.templating import Jinja2Templates
+
+    # A plain Jinja2Templates pointed at the same directory as reader.routers'
+    # instance, rather than importing routers itself: routers.py also imports
+    # reader.audit (A's file), which isn't present when testing R's branch in
+    # isolation (only true once I merges everything).
+    templates = Jinja2Templates(
+        directory=str(Path(__file__).resolve().parent.parent / "reader" / "templates")
+    )
+
+    cursor_ts = datetime(2026, 8, 9, 12, 34, 56, tzinfo=timezone.utc)
+    cursor_id = uuid4()
+
+    class _Message:
+        received_at = cursor_ts
+        device_id = uuid4()
+        sub_id = None
+        sender = "+15550001111"
+        preview = "hi"
+
+    class _Page:
+        messages = [_Message()]
+        total = 1
+        next_cursor = (cursor_ts, cursor_id)
+
+    html = templates.get_template("unassigned.html").render(
+        page=_Page(), device_id=None, devices=[]
+    )
+
+    encoded = html.split("after_ts=")[1].split("&")[0]
+    assert "+" not in encoded  # raw '+' would mean it leaked through unescaped
+    assert datetime.fromisoformat(unquote(encoded)) == cursor_ts
+
+
 # --- inbox-only rendering ----------------------------------------------------
 
 
