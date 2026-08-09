@@ -36,4 +36,4 @@ markers = [
 ]
 
 [tool.setuptools]
-packages = ["app", "cli", "reader"]
+packages = ["app", "cli"]

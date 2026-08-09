@@ -38,7 +38,7 @@
 </table>
 {% if page.next_cursor %}
 <p>
-  <a href="/unassigned?{% if device_id %}device_id={{ device_id }}&{% endif %}after_ts={{ page.next_cursor[0].isoformat() }}&after_id={{ page.next_cursor[1] }}">
+  <a href="/unassigned?{% if device_id %}device_id={{ device_id }}&{% endif %}after_ts={{ page.next_cursor[0].isoformat() | urlencode }}&after_id={{ page.next_cursor[1] }}">
     Next page &rarr;
   </a>
 </p>
