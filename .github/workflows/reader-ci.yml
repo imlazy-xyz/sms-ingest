@@ -74,13 +74,15 @@ jobs:
         id: keys
         run: |
           set -uo pipefail
-          sms-ingest-admin gen-keys > keys.env 2>gen-keys.log
-          status=$?
-          cat gen-keys.log
-          if [ "${status}" -ne 0 ]; then
-            echo "gen-keys failed with status ${status}" >&2
-            exit "${status}"
+          # GH Actions always runs `run:` blocks as `bash -e {0}`, which would
+          # abort here before the log could be inspected -- use an `if`
+          # condition, which bash's `-e` exempts, instead of relying on `set +e`.
+          if ! sms-ingest-admin gen-keys > keys.env 2>gen-keys.log; then
+            echo "gen-keys failed:" >&2
+            cat gen-keys.log >&2
+            exit 1
           fi
+          cat gen-keys.log
           # shellcheck disable=SC2002
           {
             echo "keys<<KEYS_EOF"
