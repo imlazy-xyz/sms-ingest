@@ -35,5 +35,5 @@ markers = [
     "integration: requires a reachable Postgres (skipped when DATABASE_URL is unset/unreachable)",
 ]
 
-[tool.setuptools]
-packages = ["app", "cli"]
+[tool.setuptools.packages.find]
+include = ["app*", "cli*"]

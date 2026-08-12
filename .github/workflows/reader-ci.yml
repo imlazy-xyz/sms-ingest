@@ -1,0 +1,157 @@
+name: Reader CI
+
+# Verifies the admin reader UI's Containerfile actually builds and boots —
+# the one thing the agent sandbox cannot do itself (podman build's RUN step
+# fails there at every runtime level; see reader/README.md "If you cannot
+# build the image locally" and ADR 0008 in the private agent repo). This
+# workflow builds the image with Docker (a drop-in engine for the
+# Containerfile — see backend-deploy.yml, which already does the same for
+# backend/Dockerfile), boots it against a real Postgres, and hits a real
+# route end to end, then tears it down. Ephemeral test key material is
+# generated fresh every run and never persisted or reused.
+#
+# This does not replace scripts/reader-up.sh's real Podman pod (loopback-only
+# port publish, shared pod netns) — it proves the image itself builds and the
+# app boots and serves, which is the residual risk `podman build` inside the
+# sandbox could never rule out.
+
+on:
+  push:
+    paths:
+      - "backend/reader/**"
+      - "backend/app/**"
+      - "backend/cli/**"
+      - "backend/migrations/**"
+      - "backend/pyproject.toml"
+      - "backend/README.md"
+      - "backend/.dockerignore"
+      - "backend/.containerignore"
+      - ".github/workflows/reader-ci.yml"
+  pull_request:
+    paths:
+      - "backend/reader/**"
+      - "backend/app/**"
+      - "backend/cli/**"
+      - "backend/migrations/**"
+      - "backend/pyproject.toml"
+      - "backend/README.md"
+      - "backend/.dockerignore"
+      - "backend/.containerignore"
+      - ".github/workflows/reader-ci.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  build-and-boot:
+    name: Build image and verify boot
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sms_ingest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend package (for gen-keys/migrate via the admin CLI)
+        run: pip install .
+
+      - name: Generate ephemeral test key material
+        id: keys
+        run: |
+          set -uo pipefail
+          # GH Actions always runs `run:` blocks as `bash -e {0}`, which would
+          # abort here before the log could be inspected -- use an `if`
+          # condition, which bash's `-e` exempts, instead of relying on `set +e`.
+          if ! sms-ingest-admin gen-keys > keys.env 2>gen-keys.log; then
+            echo "gen-keys failed:" >&2
+            cat gen-keys.log >&2
+            exit 1
+          fi
+          cat gen-keys.log
+          # shellcheck disable=SC2002
+          {
+            echo "keys<<KEYS_EOF"
+            cat keys.env
+            echo "KEYS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sms_ingest
+        run: sms-ingest-admin migrate
+
+      - name: Build reader image
+        run: |
+          docker build -f reader/Containerfile -t sms-ingest-reader:ci .
+
+      - name: Boot reader against Postgres
+        env:
+          READER_KEYS: ${{ steps.keys.outputs.keys }}
+        run: |
+          set -euo pipefail
+          echo "${READER_KEYS}" > reader.env
+          echo "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/sms_ingest" >> reader.env
+          # --network host: the postgres service is only guaranteed reachable
+          # on the runner's own network (its published port is a host-level
+          # forward, not necessarily visible via the default bridge's gateway
+          # from a container started with a plain `docker run`). Host
+          # networking is Linux-only but that's what ubuntu-latest is, and it
+          # also means the container's uvicorn (bound 0.0.0.0:8081) is already
+          # reachable at 127.0.0.1:8081 on the runner without a -p mapping.
+          docker run -d --name reader-ci \
+            --network host \
+            --env-file reader.env \
+            sms-ingest-reader:ci
+
+      - name: Wait for reader to become ready
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null http://127.0.0.1:8081/users; then
+              echo "reader responded"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "reader did not become ready in time" >&2
+          docker logs reader-ci || true
+          exit 1
+
+      - name: Verify a real route end to end
+        run: |
+          set -euo pipefail
+          status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/users)"
+          echo "GET /users -> ${status}"
+          test "${status}" = "200"
+
+      - name: Dump reader logs
+        if: always()
+        run: docker logs reader-ci || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f reader-ci || true

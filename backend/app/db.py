@@ -18,7 +18,31 @@ from app.config import Settings, get_settings
 
 _pool: ConnectionPool | None = None
 
-MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+
+def _resolve_migrations_dir() -> Path:
+    """Locate the `migrations/` directory of `.sql` files.
+
+    `Path(__file__).resolve().parent.parent` only lands on `migrations/` for
+    an editable/source-tree install, where `app/db.py`'s parent's parent is
+    the repo's `backend/` directory. A real (non-editable) install -- e.g.
+    `pip install .` inside backend/Dockerfile or reader/Containerfile --
+    puts `app/db.py` under site-packages instead, where that same walk lands
+    on site-packages itself, which has no `migrations/`. Both Containerfiles
+    already `COPY migrations ./migrations` next to `WORKDIR /app`, so a
+    cwd-relative `migrations/` is the fallback that matches how the actual
+    built images are laid out.
+    """
+    candidates = [
+        Path(__file__).resolve().parent.parent / "migrations",
+        Path.cwd() / "migrations",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
+MIGRATIONS_DIR = _resolve_migrations_dir()
 
 
 def get_pool(settings: Settings | None = None) -> ConnectionPool:
