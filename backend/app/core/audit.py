@@ -28,6 +28,7 @@ SIM_ASSIGNED = "sim.assigned"
 SIM_ASSIGNMENT_CORRECTED = "sim.assignment_corrected"
 SIM_REASSIGNED = "sim.reassigned"
 OWNERSHIP_RESOLVED = "ownership.resolved"
+NUMBER_OWNER_REASSIGNED = "number.owner_reassigned"
 
 # Reader (admin read-only UI) events. Every decrypt-read in the reader records
 # exactly one sanitized row of this type. Metadata is who/when/scope/counts

@@ -66,6 +66,58 @@ def test_create_user_and_number(cli_settings, pg_conn, capsys):
     assert row["n"] == 1
 
 
+def test_reassign_number_owner_cli(cli_settings, pg_conn, capsys):
+    rc = cli_main.main(["create-user", "--display-name", "Jan"])
+    user_a = json.loads(capsys.readouterr().out)["id"]
+    rc = cli_main.main(["create-user", "--display-name", "Karl"])
+    user_b = json.loads(capsys.readouterr().out)["id"]
+    rc = cli_main.main(["create-number", "--e164", "+15556660000", "--user-id", user_a])
+    number_id = json.loads(capsys.readouterr().out)["id"]
+
+    rc = cli_main.main(
+        [
+            "reassign-number-owner",
+            "--number-id",
+            number_id,
+            "--user-id",
+            user_b,
+            "--same-person",
+        ]
+    )
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["same_person"] is True
+
+    row = pg_conn.execute("select user_id from numbers where id=%s", (number_id,)).fetchone()
+    assert str(row["user_id"]) == user_b
+
+
+def test_reassign_number_owner_cli_requires_exactly_one_guard_flag(
+    cli_settings, pg_conn, capsys
+):
+    rc = cli_main.main(["create-user", "--display-name", "Liz"])
+    user_id = json.loads(capsys.readouterr().out)["id"]
+    rc = cli_main.main(["create-number", "--e164", "+15557770000", "--user-id", user_id])
+    number_id = json.loads(capsys.readouterr().out)["id"]
+
+    with pytest.raises(SystemExit):
+        cli_main.main(
+            ["reassign-number-owner", "--number-id", number_id, "--user-id", user_id]
+        )
+    with pytest.raises(SystemExit):
+        cli_main.main(
+            [
+                "reassign-number-owner",
+                "--number-id",
+                number_id,
+                "--user-id",
+                user_id,
+                "--same-person",
+                "--different-owner",
+            ]
+        )
+
+
 def test_assign_sim_and_resolve_cli(
     cli_settings, pg_conn, ctx, keys, make_request, make_message, capsys
 ):

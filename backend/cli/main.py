@@ -11,6 +11,7 @@ Commands:
   run-retention       Delete expired SMS records (idempotent) and audit the deletion.
   create-user         Create a user (display name only).
   create-number       Create a number (e164) owned by a user.
+  reassign-number-owner  Change a number's current owner (--same-person or --different-owner).
   assign-sim          Curate a (device, subId) -> number mapping.
   apply-curation      Apply a batch of assign-sim directives from a JSON seed file.
   list-observed-sims  Enumerate distinct (device, subId) pairs seen for a device.
@@ -169,6 +170,28 @@ def cmd_create_number(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reassign_number_owner(args: argparse.Namespace) -> int:
+    if args.same_person == args.different_owner:
+        # argparse mutually-exclusive-required guarantees exactly one is True;
+        # this is a belt-and-suspenders check against future wiring mistakes.
+        print("exactly one of --same-person or --different-owner is required", file=sys.stderr)
+        return 1
+    settings = get_settings()
+    with db.connection(settings) as conn:
+        try:
+            result = curation.reassign_number_owner(
+                conn,
+                number_id=args.number_id,
+                new_user_id=args.user_id,
+                same_person=args.same_person,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+    print(json.dumps(result))
+    return 0
+
+
 def cmd_assign_sim(args: argparse.Namespace) -> int:
     settings = get_settings()
     with db.connection(settings) as conn:
@@ -270,6 +293,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--label")
     p.add_argument("--iccid")
     p.set_defaults(func=cmd_create_number)
+
+    p = sub.add_parser(
+        "reassign-number-owner",
+        help="Change a number's current owner. Ownership is derived dynamically "
+        "(current-ownership, not frozen attribution), so this affects the whole "
+        "message history, past and future, immediately.",
+    )
+    p.add_argument("--number-id", required=True)
+    p.add_argument("--user-id", required=True, help="The new owner.")
+    guard = p.add_mutually_exclusive_group(required=True)
+    guard.add_argument(
+        "--same-person",
+        action="store_true",
+        help="Old and new owner are the same real person (e.g. a duplicate-user "
+        "cleanup or mislabel fix) -- current-ownership is correct as-is.",
+    )
+    guard.add_argument(
+        "--different-owner",
+        action="store_true",
+        help="Old and new owner are genuinely different people. This still hands "
+        "the number's entire past message history to the new owner -- there is "
+        "no per-message freeze in v1 -- but records the distinction in the audit "
+        "trail instead of reassigning silently under the same path as a "
+        "same-person correction. Confirm this is really what you want.",
+    )
+    p.set_defaults(func=cmd_reassign_number_owner)
 
     p = sub.add_parser(
         "assign-sim",
