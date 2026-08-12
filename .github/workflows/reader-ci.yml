@@ -105,11 +105,17 @@ jobs:
         run: |
           set -euo pipefail
           echo "${READER_KEYS}" > reader.env
-          echo "DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/sms_ingest" >> reader.env
+          echo "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/sms_ingest" >> reader.env
+          # --network host: the postgres service is only guaranteed reachable
+          # on the runner's own network (its published port is a host-level
+          # forward, not necessarily visible via the default bridge's gateway
+          # from a container started with a plain `docker run`). Host
+          # networking is Linux-only but that's what ubuntu-latest is, and it
+          # also means the container's uvicorn (bound 0.0.0.0:8081) is already
+          # reachable at 127.0.0.1:8081 on the runner without a -p mapping.
           docker run -d --name reader-ci \
-            --add-host=host.docker.internal:host-gateway \
+            --network host \
             --env-file reader.env \
-            -p 127.0.0.1:8081:8081 \
             sms-ingest-reader:ci
 
       - name: Wait for reader to become ready
