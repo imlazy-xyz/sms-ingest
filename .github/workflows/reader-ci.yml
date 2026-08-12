@@ -23,6 +23,9 @@ on:
       - "backend/cli/**"
       - "backend/migrations/**"
       - "backend/pyproject.toml"
+      - "backend/README.md"
+      - "backend/.dockerignore"
+      - "backend/.containerignore"
       - ".github/workflows/reader-ci.yml"
   pull_request:
     paths:
@@ -31,8 +34,14 @@ on:
       - "backend/cli/**"
       - "backend/migrations/**"
       - "backend/pyproject.toml"
+      - "backend/README.md"
+      - "backend/.dockerignore"
+      - "backend/.containerignore"
       - ".github/workflows/reader-ci.yml"
   workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 defaults:
   run:
