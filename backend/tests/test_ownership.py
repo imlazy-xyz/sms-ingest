@@ -79,6 +79,51 @@ def test_numbers_e164_unique(pg_conn):
         numbers.insert(pg_conn, e164="+15550000001", user_id=user["id"])
 
 
+# --- reassign_number_owner service ----------------------------------------
+
+
+def test_reassign_number_owner_same_person(pg_conn):
+    user_a = users.insert(pg_conn, display_name="Frank")
+    user_b = users.insert(pg_conn, display_name="Frank (duplicate record)")
+    number = numbers.insert(pg_conn, e164="+15553330000", user_id=user_a["id"])
+
+    result = curation.reassign_number_owner(
+        pg_conn, number_id=number["id"], new_user_id=user_b["id"], same_person=True
+    )
+    assert result["same_person"] is True
+    assert numbers.get_by_id(pg_conn, number["id"])["user_id"] == user_b["id"]
+
+
+def test_reassign_number_owner_different_owner(pg_conn):
+    user_a = users.insert(pg_conn, display_name="Grace")
+    user_b = users.insert(pg_conn, display_name="Heidi")
+    number = numbers.insert(pg_conn, e164="+15554440000", user_id=user_a["id"])
+
+    result = curation.reassign_number_owner(
+        pg_conn, number_id=number["id"], new_user_id=user_b["id"], same_person=False
+    )
+    assert result["same_person"] is False
+    assert result["old_user_id"] == str(user_a["id"])
+    # No freeze mechanism in v1 -- the reassignment still happens; only the
+    # audit-recorded intent differs from the same_person path.
+    assert numbers.get_by_id(pg_conn, number["id"])["user_id"] == user_b["id"]
+
+
+def test_reassign_number_owner_unknown_ids(pg_conn):
+    user = users.insert(pg_conn, display_name="Ivan")
+    number = numbers.insert(pg_conn, e164="+15555550000", user_id=user["id"])
+    missing = "00000000-0000-0000-0000-000000000000"
+
+    with pytest.raises(ValueError):
+        curation.reassign_number_owner(
+            pg_conn, number_id=missing, new_user_id=user["id"], same_person=True
+        )
+    with pytest.raises(ValueError):
+        curation.reassign_number_owner(
+            pg_conn, number_id=number["id"], new_user_id=missing, same_person=True
+        )
+
+
 # --- sim_assignments repo --------------------------------------------------
 
 

@@ -64,6 +64,63 @@ def create_number(
     return row
 
 
+def reassign_number_owner(
+    conn: psycopg.Connection,
+    *,
+    number_id: UUID | str,
+    new_user_id: UUID | str,
+    same_person: bool,
+) -> dict[str, Any]:
+    """Change a number's current owner (``numbers.user_id``).
+
+    Ownership is derived dynamically at read time (§4.2 of the admin-reader-ui
+    plan: current-ownership, not frozen attribution) — every message ever
+    stamped ``owner_number_id`` for this number, past and future, reads as
+    belonging to whoever owns the number *now*. That is harmless when the old
+    and new owner are the *same real person* (e.g. correcting a duplicate-user
+    mislabel). It silently hands over the old owner's entire message history
+    when they are genuinely different people.
+
+    There is no ``numbers_user_history`` table to freeze against (deliberately
+    out of scope, YAGNI) and no ``owner_user_id`` stamp — so this cannot be
+    enforced by the schema. It is enforced procedurally instead: the caller
+    (CLI) must have already asked the operator which case this is and pass
+    ``same_person`` explicitly. ``same_person=False`` still performs the
+    reassignment (there is no freeze mechanism to fall back to) but the intent
+    is recorded distinctly in the audit trail rather than reassigned silently
+    under the same code path as a same-person correction.
+
+    Raises ValueError if either id doesn't exist.
+    """
+    number = numbers.get_by_id(conn, number_id)
+    if number is None:
+        raise ValueError(f"no such number: {number_id}")
+    new_user = users_repo.get_by_id(conn, new_user_id)
+    if new_user is None:
+        raise ValueError(f"no such user: {new_user_id}")
+
+    old_user_id = number["user_id"]
+    with conn.transaction():
+        numbers.set_user(conn, number_id, new_user_id)
+        audit.record(
+            conn,
+            audit.NUMBER_OWNER_REASSIGNED,
+            actor_type=audit.ACTOR_ADMIN,
+            metadata={
+                "number_id": str(number_id),
+                "old_user_id": str(old_user_id),
+                "new_user_id": str(new_user_id),
+                "same_person": same_person,
+            },
+        )
+    return {
+        "number_id": str(number_id),
+        "old_user_id": str(old_user_id),
+        "new_user_id": str(new_user_id),
+        "same_person": same_person,
+    }
+
+
 def _decrypt_sub_id(field_aead: aead.Aead, sim_info_enc: bytes | None) -> int | None:
     """Best-effort decrypt + parse. Returns None (never raises) on any
     missing/undecryptable/non-integer value — those rows simply stay
