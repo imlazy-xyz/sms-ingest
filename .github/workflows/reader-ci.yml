@@ -73,9 +73,14 @@ jobs:
       - name: Generate ephemeral test key material
         id: keys
         run: |
-          set -euo pipefail
+          set -uo pipefail
           sms-ingest-admin gen-keys > keys.env 2>gen-keys.log
+          status=$?
           cat gen-keys.log
+          if [ "${status}" -ne 0 ]; then
+            echo "gen-keys failed with status ${status}" >&2
+            exit "${status}"
+          fi
           # shellcheck disable=SC2002
           {
             echo "keys<<KEYS_EOF"
