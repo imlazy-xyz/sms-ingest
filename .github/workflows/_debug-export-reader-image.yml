@@ -1,0 +1,31 @@
+name: (debug) Export reader image
+
+# Throwaway, not for merge: builds the reader image and uploads it as a
+# tarball artifact so it can be pulled into the agent sandbox's nested
+# Podman engine (which can run images but never build them -- ADR 0008 in
+# the private agent repo) for a real local boot check.
+
+on:
+  push:
+    paths:
+      - ".github/workflows/_debug-export-reader-image.yml"
+  workflow_dispatch: {}
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build reader image
+        run: docker build -f reader/Containerfile -t sms-ingest-reader:local .
+      - name: Save image tarball
+        run: docker save -o /tmp/sms-ingest-reader.tar sms-ingest-reader:local
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sms-ingest-reader-image
+          path: /tmp/sms-ingest-reader.tar
+          retention-days: 1
