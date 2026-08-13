@@ -17,6 +17,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Exercises [SyncScheduler] against a real, synchronous, in-memory
@@ -37,8 +38,24 @@ import org.robolectric.RobolectricTestRunner
  * `Result.retry()`, so no real app `doWork()` ever executes here, and the
  * work spec stays non-finished (ENQUEUED with backoff) — the state
  * `KEEP`/`REPLACE` semantics are documented against.
+ *
+ * `@Config(application = ...)` substitutes the stock [android.app.Application]
+ * for the manifest's `SmsIngestApplication`: Robolectric instantiates and
+ * calls `onCreate()` on the manifest application *before* `@Before` runs,
+ * and `SmsIngestApplication.onCreate()` unconditionally calls
+ * `container.syncScheduler.ensurePeriodicSync()`, which calls
+ * `WorkManager.getInstance(...)` before this class's `setUp()` has had a
+ * chance to call `initializeTestWorkManager`. If WorkManager isn't already
+ * initialized at that point (androidx.startup's auto-init provider is not
+ * guaranteed to run in every Robolectric configuration), that throws
+ * `IllegalStateException` and fails every test in this class during setup,
+ * for a reason unrelated to what's under test. Swapping in a stock
+ * `Application` also skips `AppContainer`'s eager Tink registration and
+ * `SmsIngestApplication`'s `ActivityManager`/exit-reason lookups — none of
+ * which this scheduler-level test needs.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(application = android.app.Application::class)
 class SyncSchedulerTest {
 
     private lateinit var workManager: WorkManager
