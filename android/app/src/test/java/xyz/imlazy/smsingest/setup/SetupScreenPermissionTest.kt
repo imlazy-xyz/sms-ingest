@@ -5,11 +5,7 @@ import android.app.Application
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.testing.WorkManagerTestInitHelper
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,13 +15,6 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowApplication
 import xyz.imlazy.smsingest.crypto.KeysetVerification
 import xyz.imlazy.smsingest.crypto.KeysetVerifier
-import xyz.imlazy.smsingest.data.PendingBatchDao
-import xyz.imlazy.smsingest.data.PendingBatchEntity
-import xyz.imlazy.smsingest.data.PendingBatchStatus
-import xyz.imlazy.smsingest.data.UploadedDedupeDao
-import xyz.imlazy.smsingest.data.UploadedDedupeIdEntity
-import xyz.imlazy.smsingest.debug.SyncStatusViewModel
-import xyz.imlazy.smsingest.sync.SyncScheduler
 
 /**
  * Named distinctly from [SetupViewModelTest]'s `FakeCredentialStore` — this
@@ -55,31 +44,22 @@ private class FakePermissionKeysetVerifier : KeysetVerifier {
         KeysetVerification.Unavailable("not exercised in this test")
 }
 
-/** Minimal no-op [PendingBatchDao] — [SyncStatusViewModel]'s data is never rendered on the permission step. */
-private class FakePermissionPendingBatchDao : PendingBatchDao {
-    override suspend fun insert(batch: PendingBatchEntity) = Unit
-    override suspend fun update(batch: PendingBatchEntity) = Unit
-    override suspend fun delete(batch: PendingBatchEntity) = Unit
-    override suspend fun getByClientBatchId(clientBatchId: String): PendingBatchEntity? = null
-    override fun observeByState(state: String): Flow<List<PendingBatchEntity>> = flowOf(emptyList())
-    override suspend fun getByState(state: String): List<PendingBatchEntity> = emptyList()
-    override suspend fun deleteOversized(maxChars: Int): Int = 0
-    override fun observeCountByState(state: String): Flow<Int> = flowOf(0)
-    override fun observeMostRecentStatus(): Flow<PendingBatchStatus?> = flowOf(null)
-}
-
-/** Minimal no-op [UploadedDedupeDao] — same rationale as [FakePermissionPendingBatchDao]. */
-private class FakePermissionUploadedDedupeDao : UploadedDedupeDao {
-    override suspend fun insert(entry: UploadedDedupeIdEntity) = Unit
-    override suspend fun exists(dedupeId: String): Boolean = false
-    override fun observeCount(): Flow<Int> = flowOf(0)
-}
-
 /**
  * Robolectric + Compose-test-rule coverage for the permission-consent screen
- * (`SetupScreen.kt`'s private `PermissionRequestContent`, reached via
- * `SetupStep.PermissionRequest`). Closes the "Permission flow on Android 15
- * (grant, deny, re-request)" gap noted in the plan's Test Plan section.
+ * ([PermissionRequestContent], reached via `SetupStep.PermissionRequest`).
+ * Closes the "Permission flow on Android 15 (grant, deny, re-request)" gap
+ * noted in the plan's Test Plan section.
+ *
+ * Composes [PermissionRequestContent] directly rather than going through
+ * [SetupScreen]'s full `when` dispatch: once the already-granted case calls
+ * `onPermissionsGranted()`, `SetupScreen` would recompose into `QrScanScreen`,
+ * whose `AndroidView` factory calls `ProcessCameraProvider.getInstance()`
+ * synchronously — no Robolectric camera shadow is on this project's test
+ * classpath, and that genuinely threw `IllegalStateException` in CI the first
+ * time this test went through `SetupScreen`. Composing
+ * [PermissionRequestContent] directly (now `internal`, not `private`, for
+ * exactly this reason) tests the same real production composable and its
+ * real `onPermissionsGranted` callback without ever reaching `QrScanScreen`.
  *
  * The interactive tap-through-grant case (driving
  * `ActivityResultContracts.RequestMultiplePermissions()`'s callback via a
@@ -88,12 +68,11 @@ private class FakePermissionUploadedDedupeDao : UploadedDedupeDao {
  *
  * `@Config(application = ...)` substitutes the stock [android.app.Application]
  * for the manifest's [xyz.imlazy.smsingest.SmsIngestApplication] — without it,
- * Robolectric runs that real `onCreate()` before `@Before`, which forces
- * `SyncScheduler.ensurePeriodicSync()` (`WorkManager.getInstance(...)`) via a
- * real `AppContainer` and then collides with this test's own
- * `WorkManagerTestInitHelper.initializeTestWorkManager()` call below
- * (`IllegalStateException: WorkManager is already initialized`). See
- * `SyncSchedulerTest`'s class doc, which found and fixed this first.
+ * Robolectric runs that real `onCreate()` before any `@Test`, which builds a
+ * full `AppContainer` and forces `SyncScheduler.ensurePeriodicSync()`
+ * (`WorkManager.getInstance(...)`), none of which this permission-only test
+ * needs or wants running. See `SyncSchedulerTest`'s class doc, which found
+ * this landmine first.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = android.app.Application::class)
@@ -101,23 +80,6 @@ class SetupScreenPermissionTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
-
-    @Before
-    fun setUp() {
-        // SyncScheduler's constructor calls WorkManager.getInstance(context) directly
-        // (not through androidx.startup here), so the test WorkManager instance must
-        // be initialized explicitly before anything in this test constructs one.
-        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
-    }
-
-    private fun statusViewModel(): SyncStatusViewModel {
-        val context = ApplicationProvider.getApplicationContext<Application>()
-        return SyncStatusViewModel(
-            FakePermissionPendingBatchDao(),
-            FakePermissionUploadedDedupeDao(),
-            SyncScheduler(context),
-        )
-    }
 
     private fun grantAllRequiredPermissions() {
         val shadowApplication: ShadowApplication =
@@ -132,39 +94,29 @@ class SetupScreenPermissionTest {
     @Test
     fun `auto-advances past permission request when all permissions are already granted`() {
         grantAllRequiredPermissions()
-        val viewModel = SetupViewModel(FakePermissionCredentialStore(), FakePermissionKeysetVerifier())
-        val statusVm = statusViewModel()
+        var granted = false
 
-        // NOTE: once `onPermissionsGranted()` fires below, `SetupScreen`'s own `when`
-        // recomposes into `QrScanScreen`, which touches CameraX
-        // (`ProcessCameraProvider.getInstance`) synchronously inside an `AndroidView`
-        // factory during composition. That path was not independently verified under
-        // Robolectric (no camera shadow/testing artifact is on this project's test
-        // classpath) — if it turns out to be unsafe here, this test is the one that
-        // will surface it, and the fix is a Robolectric camera shadow or an
-        // `@Config`-level camera stub, not a change to the assertion below.
         composeTestRule.setContent {
-            SetupScreen(viewModel = viewModel, statusViewModel = statusVm)
+            PermissionRequestContent(onPermissionsGranted = { granted = true })
         }
         composeTestRule.waitForIdle()
 
-        assertEquals(SetupStep.QrScan, viewModel.step.value)
+        assertEquals(true, granted)
     }
 
     @Test
     fun `shows consent content and does not advance when permissions are not yet granted`() {
         // No shadow grant here — Robolectric denies runtime permissions by default.
-        val viewModel = SetupViewModel(FakePermissionCredentialStore(), FakePermissionKeysetVerifier())
-        val statusVm = statusViewModel()
+        var granted = false
 
         composeTestRule.setContent {
-            SetupScreen(viewModel = viewModel, statusViewModel = statusVm)
+            PermissionRequestContent(onPermissionsGranted = { granted = true })
         }
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Grant permissions").assertExists()
         composeTestRule.onNodeWithText("Set up SMS Ingest").assertExists()
-        assertEquals(SetupStep.PermissionRequest, viewModel.step.value)
+        assertEquals(false, granted)
     }
 
     // Tap-through-grant case (button click -> system permission dialog ->

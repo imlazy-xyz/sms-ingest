@@ -65,9 +65,11 @@ android {
 
     testOptions {
         // Several classes exercised by plain JVM unit tests (e.g. BatchSyncer)
-        // now call android.util.Log for debug-phase diagnostics; the stock
-        // android.jar test stub throws on any call unless this is set, since
-        // there's no Robolectric/instrumented runtime backing it here.
+        // call android.util.Log for debug-phase diagnostics; the stock
+        // android.jar test stub throws on any call unless this is set. Most
+        // tests here now run under Robolectric (below), which provides a real
+        // Log shadow instead of the throwing stub — but plain (non-Robolectric)
+        // JVM tests still hit the stub directly, so this stays required.
         unitTests.isReturnDefaultValues = true
         unitTests {
             // Robolectric needs the real manifest/resources on the JVM test
