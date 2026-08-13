@@ -12,6 +12,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Exercises [PendingBatchDao] against a real in-memory Room database (not a
@@ -19,8 +20,17 @@ import org.robolectric.RobolectricTestRunner
  * `deleteOversized` tests below are a regression test for the production
  * `SQLiteBlobTooBigException` crash described on
  * [PendingBatchDao.deleteOversized]'s doc comment.
+ *
+ * `@Config(application = ...)` substitutes the stock [android.app.Application]
+ * for the manifest's [xyz.imlazy.smsingest.SmsIngestApplication], which
+ * Robolectric would otherwise instantiate and run `onCreate()` on before
+ * `@Before` — that real `onCreate()` builds a full `AppContainer` and forces
+ * `SyncScheduler.ensurePeriodicSync()` (`WorkManager.getInstance(...)`) with
+ * no test-WorkManager init, work this test has no reason to trigger. See
+ * `SyncSchedulerTest`'s class doc for the concrete crash this avoids.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(application = android.app.Application::class)
 class PendingBatchDaoRobolectricTest {
 
     private lateinit var db: AppDatabase

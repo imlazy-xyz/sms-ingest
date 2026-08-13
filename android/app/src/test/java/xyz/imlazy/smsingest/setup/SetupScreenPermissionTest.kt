@@ -15,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
+import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowApplication
 import xyz.imlazy.smsingest.crypto.KeysetVerification
 import xyz.imlazy.smsingest.crypto.KeysetVerifier
@@ -84,8 +85,18 @@ private class FakePermissionUploadedDedupeDao : UploadedDedupeDao {
  * `ActivityResultContracts.RequestMultiplePermissions()`'s callback via a
  * simulated system permission dialog result) is deliberately not covered
  * here — see the class doc on why, at the bottom of this file's test list.
+ *
+ * `@Config(application = ...)` substitutes the stock [android.app.Application]
+ * for the manifest's [xyz.imlazy.smsingest.SmsIngestApplication] — without it,
+ * Robolectric runs that real `onCreate()` before `@Before`, which forces
+ * `SyncScheduler.ensurePeriodicSync()` (`WorkManager.getInstance(...)`) via a
+ * real `AppContainer` and then collides with this test's own
+ * `WorkManagerTestInitHelper.initializeTestWorkManager()` call below
+ * (`IllegalStateException: WorkManager is already initialized`). See
+ * `SyncSchedulerTest`'s class doc, which found and fixed this first.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(application = android.app.Application::class)
 class SetupScreenPermissionTest {
 
     @get:Rule
@@ -94,10 +105,8 @@ class SetupScreenPermissionTest {
     @Before
     fun setUp() {
         // SyncScheduler's constructor calls WorkManager.getInstance(context) directly
-        // (not through androidx.startup here), so without this it depends on whatever
-        // default initializer Robolectric's merged manifest happens to run — not
-        // something to leave to chance. work-testing is already on the test classpath
-        // for exactly this.
+        // (not through androidx.startup here), so the test WorkManager instance must
+        // be initialized explicitly before anything in this test constructs one.
         WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
     }
 
