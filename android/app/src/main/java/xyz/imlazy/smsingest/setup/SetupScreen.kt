@@ -66,8 +66,16 @@ fun SetupScreen(
     }
 }
 
+/**
+ * `internal`, not `private`: [SetupScreenPermissionTest] composes this
+ * directly rather than going through [SetupScreen]'s full `when` dispatch, so
+ * an already-granted test doesn't also recompose into [QrScanScreen] — that
+ * screen's `AndroidView` factory calls `ProcessCameraProvider.getInstance()`
+ * synchronously, which has no Robolectric camera shadow on this project's
+ * test classpath and throws there.
+ */
 @Composable
-private fun PermissionRequestContent(onPermissionsGranted: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PermissionRequestContent(onPermissionsGranted: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),

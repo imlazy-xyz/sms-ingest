@@ -65,6 +65,18 @@ okhttp = "4.12.0"
 # listing in this sandbox (no network access) — confirm against CI's
 # checkDebugAarMetadata output before bumping, per decisions.md 2026-07-21.
 work = "2.9.1"
+# Phase 8 instrumented-test-tooling addition (decisions.md 2026-08-08:
+# Robolectric, not a CI emulator step). 4.14.x is the first Robolectric line
+# advertising API 35 (Android 15) support, matching this project's locked
+# compileSdk=35 — not independently re-verified against Maven Central in this
+# sandbox (no network access, same caveat as retrofit/okhttp above); confirm
+# against CI's testDebugUnitTest output before relying on it. androidxTestCore
+# is Robolectric's own shadow/test-runtime dependency, not a version choice
+# with independent constraints. work-testing pins to the same `work` version
+# as work-runtime-ktx above (androidx.work ships runtime and testing artifacts
+# in lockstep; a mismatch is a compile-time metadata conflict, not a runtime one).
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -103,6 +115,11 @@ retrofit-kotlinx-serialization-converter = { group = "com.jakewharton.retrofit",
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+androidx-work-testing = { group = "androidx.work", name = "work-testing", version.ref = "work" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

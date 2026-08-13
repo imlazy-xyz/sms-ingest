@@ -65,10 +65,18 @@ android {
 
     testOptions {
         // Several classes exercised by plain JVM unit tests (e.g. BatchSyncer)
-        // now call android.util.Log for debug-phase diagnostics; the stock
-        // android.jar test stub throws on any call unless this is set, since
-        // there's no Robolectric/instrumented runtime backing it here.
+        // call android.util.Log for debug-phase diagnostics; the stock
+        // android.jar test stub throws on any call unless this is set. Most
+        // tests here now run under Robolectric (below), which provides a real
+        // Log shadow instead of the throwing stub — but plain (non-Robolectric)
+        // JVM tests still hit the stub directly, so this stays required.
         unitTests.isReturnDefaultValues = true
+        unitTests {
+            // Robolectric needs the real manifest/resources on the JVM test
+            // classpath (permission declarations, themes for Compose tests);
+            // without this it only sees a synthetic default manifest.
+            isIncludeAndroidResources = true
+        }
     }
 
     buildFeatures {
@@ -114,6 +122,17 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    // Phase 8 instrumented-test-tooling addition: Robolectric-backed JVM tests
+    // for permission flow, Room DAO behavior, and WorkManager scheduling —
+    // see decisions.md 2026-08-08. Runs under the existing testDebugUnitTest
+    // task (no emulator/CI workflow change needed).
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.androidx.work.testing)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.espresso.core)
