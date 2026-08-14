@@ -10,7 +10,7 @@
 <div class="message">
   <div class="meta">
     <span class="from-label">From {{ m.sender }}</span>
-    &middot; {{ m.received_at }}
+    &middot; <span class="mono">{{ m.received_at }}</span>
   </div>
   <div>{{ m.body }}</div>
 </div>
@@ -20,7 +20,8 @@
 <button
   hx-get="/numbers/{{ number_id }}/thread?counterparty={{ window.counterparty | urlencode }}&offset={{ window.next_offset }}"
   hx-target="this"
-  hx-swap="outerHTML">
-  Load more
+  hx-swap="outerHTML"
+  hx-indicator="find .spinner">
+  Load more <span class="spinner htmx-indicator"></span>
 </button>
 {% endif %}

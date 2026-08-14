@@ -28,6 +28,7 @@ passthrough.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -46,6 +47,22 @@ from reader.auth import Operator, get_operator
 router = APIRouter()
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+
+_RECENT_WINDOW = timedelta(hours=24)
+
+
+def _is_recent(value: datetime | None) -> bool:
+    """Purely presentational (v2 §5): highlight a timestamp already on the
+    page, no new query or decrypt. Naive datetimes are treated as UTC rather
+    than compared against an aware `now` and raising."""
+    if value is None:
+        return False
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - value < _RECENT_WINDOW
+
+
+templates.env.globals["is_recent"] = _is_recent
 
 
 # --- audit translation -------------------------------------------------
