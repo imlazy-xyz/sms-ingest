@@ -8,7 +8,10 @@
 {% else %}
 {% for m in window.messages %}
 <div class="message">
-  <div class="meta">{{ m.received_at }} &middot; device {{ m.device_id }}</div>
+  <div class="meta">
+    <span class="from-label">From {{ m.sender }}</span>
+    &middot; {{ m.received_at }}
+  </div>
   <div>{{ m.body }}</div>
 </div>
 {% endfor %}
