@@ -288,6 +288,20 @@ def test_unassigned_next_page_link_urlencodes_the_cursor():
 # --- inbox-only rendering ----------------------------------------------------
 
 
+def test_thread_partial_labels_each_message_with_its_sender(reader_client, seeded_number):
+    """Comprehension fix (admin-reader-ui-v2-plan §3): every message in a
+    thread must carry an at-a-glance 'from {counterparty}' label, not rely on
+    the operator reading the page's h2 or the device id in fine print --
+    especially once 'load more' has appended several pages of messages below
+    the header."""
+    number_id = seeded_number["number"]["id"]
+    resp = reader_client.get(
+        f"/numbers/{number_id}/thread", params={"counterparty": "+15550001111"}
+    )
+    assert resp.status_code == 200
+    assert resp.text.count("From +15550001111") == 2  # both seeded messages
+
+
 def test_thread_view_is_one_sided_received_log(reader_client, seeded_number):
     """§6: 'One-sided received log (inbox-only), not chat bubbles.' There is
     no outbound/sent message concept anywhere in the ingestion pipeline (v1
