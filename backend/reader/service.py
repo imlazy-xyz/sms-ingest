@@ -464,7 +464,7 @@ def unassigned_page(
 #: (tz-aware) `last_activity`, and stays tz-aware itself so the comparison
 #: never mixes naive/aware datetimes (the same class of bug as v1's cursor
 #: issue, Codex finding #3).
-_NEVER_ACTIVE = datetime.min.replace(tzinfo=timezone.utc)
+NEVER_ACTIVE = datetime.min.replace(tzinfo=timezone.utc)
 
 
 def users_overview(conn: psycopg.Connection) -> list[dict[str, Any]]:
@@ -482,7 +482,7 @@ def users_overview(conn: psycopg.Connection) -> list[dict[str, Any]]:
                 "last_activity": queries.last_activity_by_owner_user(conn, user["id"]),
             }
         )
-    overview.sort(key=lambda row: row["last_activity"] or _NEVER_ACTIVE, reverse=True)
+    overview.sort(key=lambda row: row["last_activity"] or NEVER_ACTIVE, reverse=True)
     return overview
 
 

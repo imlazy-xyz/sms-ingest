@@ -129,6 +129,91 @@ def test_users_list_sorts_by_last_activity_most_recent_first(
     assert "never" in resp.text  # Bob's last-activity cell
 
 
+# --- sort/filter on list views (v2 WS2 §4.3) --------------------------------
+
+
+def test_users_list_sort_by_name(reader_client, pg_conn, seeded_number):
+    users_repo.insert(pg_conn, display_name="Aaron")
+    resp = reader_client.get("/users", params={"sort": "name"})
+    assert resp.status_code == 200
+    assert resp.text.index("Aaron") < resp.text.index("Alice")
+
+
+def test_users_list_sort_by_messages(reader_client, pg_conn, seeded_number):
+    users_repo.insert(pg_conn, display_name="Zeke (no messages)")
+    resp = reader_client.get("/users", params={"sort": "messages"})
+    assert resp.status_code == 200
+    # Alice has 3 seeded messages, Zeke has 0 -- messages-desc puts her first.
+    assert resp.text.index("Alice") < resp.text.index("Zeke (no messages)")
+
+
+def test_users_htmx_request_returns_table_partial_only(reader_client, seeded_number):
+    """The sort links swap only the table (hx-target=#users-table,
+    hx-swap=outerHTML) -- an htmx request must get just that fragment, not a
+    full page, or the swap would nest a whole second <html> document inside
+    the table cell."""
+    resp = reader_client.get("/users", headers={"HX-Request": "true"})
+    assert resp.status_code == 200
+    assert "<html" not in resp.text
+    assert '<table id="users-table">' in resp.text
+
+
+def test_user_detail_numbers_sort_by_messages(reader_client, pg_conn, seeded_number):
+    from app.repositories import numbers as numbers_repo_
+
+    user_id = seeded_number["user"]["id"]
+    numbers_repo_.insert(pg_conn, e164="+15559990000", user_id=user_id, label="spare")
+    resp = reader_client.get(f"/users/{user_id}", params={"sort": "messages"})
+    assert resp.status_code == 200
+    # seeded_number's own number has 3 messages; the new spare has 0.
+    assert resp.text.index("+15551234567") < resp.text.index("+15559990000")
+
+
+def test_devices_sort_by_last_seen(reader_client, pg_conn, seeded_number):
+    from app.core import tokens
+    from app.repositories import devices as devices_repo
+
+    devices_repo.insert(
+        pg_conn,
+        label="phone-2 (never seen)",
+        token_prefix="tok2",
+        token_hash="a" * 64,
+    )
+    resp = reader_client.get("/devices", params={"sort": "last_seen"})
+    assert resp.status_code == 200
+    # phone-1 (seeded_number's device) has real ingested traffic, so a real
+    # last_seen_at; phone-2 has none and must sort after it, not before.
+    assert resp.text.index("phone-1") < resp.text.index("phone-2 (never seen)")
+
+
+def test_number_conversation_list_sort_by_count(reader_client, seeded_number):
+    number_id = seeded_number["number"]["id"]
+    resp = reader_client.get(f"/numbers/{number_id}", params={"sort": "count"})
+    assert resp.status_code == 200
+    # +15550001111 has 2 seeded messages, +15559998888 has 1 -- count-desc
+    # puts the busier counterparty first.
+    assert resp.text.index("+15550001111") < resp.text.index("+15559998888")
+
+
+def test_number_htmx_request_returns_conversation_list_partial_only(
+    reader_client, seeded_number
+):
+    """Same htmx-partial-branch coverage as the /users test above, but for
+    /numbers/{id} specifically -- its partial (_conversation_list.html) has
+    the most complex context of the four sortable views (number/owner/sort),
+    so a typo'd template name here would 500 only on the htmx path, which
+    test_number_conversation_list_sort_by_count (no HX-Request header) does
+    not exercise."""
+    number_id = seeded_number["number"]["id"]
+    resp = reader_client.get(
+        f"/numbers/{number_id}", params={"sort": "count"}, headers={"HX-Request": "true"}
+    )
+    assert resp.status_code == 200
+    assert "<html" not in resp.text
+    assert '<div id="conversation-list-inner">' in resp.text
+    assert "+15550001111" in resp.text
+
+
 # --- structural jump-to search (v2 WS2 §4.2) --------------------------------
 
 

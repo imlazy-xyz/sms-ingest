@@ -18,24 +18,7 @@
 </div>
 <div class="reading-view">
   <div class="conversation-list">
-    {% if not conversations %}
-    <p class="empty">No conversations yet.</p>
-    {% else %}
-    <ul>
-    {% for c in conversations %}
-      <li>
-        <a href="#"
-           hx-get="/numbers/{{ number.id }}/thread?counterparty={{ c.counterparty | urlencode }}"
-           hx-target="#thread-pane"
-           hx-swap="innerHTML">
-          <strong>{{ c.counterparty }}</strong>
-          <div class="muted">{{ c.preview }}</div>
-          <div class="muted">{{ c.message_count }} messages &middot; <span class="last-activity">{{ c.last_received_at }}</span></div>
-        </a>
-      </li>
-    {% endfor %}
-    </ul>
-    {% endif %}
+    {% include "_conversation_list.html" %}
   </div>
   <div class="thread-pane" id="thread-pane">
     <p class="empty">Select a conversation to read it.</p>

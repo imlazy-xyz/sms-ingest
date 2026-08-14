@@ -3,23 +3,5 @@
 {% block content %}
 <h1>Devices</h1>
 <p class="muted">Technical view — device status, SIMs seen, last-seen, counts.</p>
-{% if not devices %}
-<p class="empty">No devices yet.</p>
-{% else %}
-<table>
-<thead><tr><th>Label</th><th>Status</th><th>SIMs assigned</th><th>Messages</th><th>Unassigned</th><th>Last seen</th></tr></thead>
-<tbody>
-{% for row in devices %}
-<tr>
-  <td><a href="/devices/{{ row.device.id }}">{{ row.device.label }}</a></td>
-  <td><span class="badge">{{ row.device.status }}</span></td>
-  <td>{{ row.assignments | length }}</td>
-  <td>{{ row.message_count }}</td>
-  <td>{% if row.unassigned_count %}<a href="/unassigned?device_id={{ row.device.id }}">{{ row.unassigned_count }}</a>{% else %}0{% endif %}</td>
-  <td>{{ row.device.last_seen_at or "" }}</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-{% endif %}
+{% include "_devices_table.html" %}
 {% endblock %}
