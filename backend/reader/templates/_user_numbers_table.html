@@ -1,0 +1,22 @@
+<!-- Sortable numbers table on a user's detail page (plan §4.3). Same
+     swap-by-id-as-a-whole pattern as _users_table.html. -->
+<table id="user-numbers-table">
+<thead><tr>
+  <th><a href="/users/{{ user_id }}?sort=number" hx-get="/users/{{ user_id }}?sort=number" hx-target="#user-numbers-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'number' %}active-sort{% endif %}">Number</a></th>
+  <th>Label</th>
+  <th><a href="/users/{{ user_id }}?sort=messages" hx-get="/users/{{ user_id }}?sort=messages" hx-target="#user-numbers-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'messages' %}active-sort{% endif %}">Messages</a></th>
+</tr></thead>
+<tbody>
+{% if not numbers %}
+<tr><td colspan="3" class="empty">No numbers assigned to this user.</td></tr>
+{% else %}
+{% for n in numbers %}
+<tr>
+  <td><a href="/numbers/{{ n.id }}">{{ n.e164 }}</a></td>
+  <td>{{ n.label or "" }}</td>
+  <td>{{ n.message_count }}</td>
+</tr>
+{% endfor %}
+{% endif %}
+</tbody>
+</table>

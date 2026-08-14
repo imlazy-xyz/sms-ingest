@@ -4,20 +4,5 @@
 <p class="muted"><a href="/users">&larr; Users</a></p>
 <h1>{{ user.display_name }}</h1>
 <!-- Write slot (designed-in, empty): "New number" would go here. -->
-{% if not numbers %}
-<p class="empty">No numbers assigned to this user.</p>
-{% else %}
-<table>
-<thead><tr><th>Number</th><th>Label</th><th>Messages</th></tr></thead>
-<tbody>
-{% for n in numbers %}
-<tr>
-  <td><a href="/numbers/{{ n.id }}">{{ n.e164 }}</a></td>
-  <td>{{ n.label or "" }}</td>
-  <td>{{ n.message_count }}</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-{% endif %}
+{% include "_user_numbers_table.html" %}
 {% endblock %}

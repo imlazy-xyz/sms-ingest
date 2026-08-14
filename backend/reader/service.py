@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -460,9 +460,17 @@ def unassigned_page(
 # --- index pages (no decryption) -------------------------------------------
 
 
+#: Sort sentinel for users with no messages yet -- always sorts after any real
+#: (tz-aware) `last_activity`, and stays tz-aware itself so the comparison
+#: never mixes naive/aware datetimes (the same class of bug as v1's cursor
+#: issue, Codex finding #3).
+NEVER_ACTIVE = datetime.min.replace(tzinfo=timezone.utc)
+
+
 def users_overview(conn: psycopg.Connection) -> list[dict[str, Any]]:
-    """Users with their number and message counts. No decryption: everything
-    shown here is operator-supplied cleartext."""
+    """Users with their number/message counts and last activity, most-recent
+    first. No decryption: everything shown here is operator-supplied
+    cleartext or a plain (unencrypted) timestamp column."""
     overview = []
     for user in users_repo.list_all(conn):
         user_numbers = numbers_repo.list_for_user(conn, user["id"])
@@ -471,8 +479,10 @@ def users_overview(conn: psycopg.Connection) -> list[dict[str, Any]]:
                 "user": user,
                 "numbers": user_numbers,
                 "message_count": queries.count_by_owner_user(conn, user["id"]),
+                "last_activity": queries.last_activity_by_owner_user(conn, user["id"]),
             }
         )
+    overview.sort(key=lambda row: row["last_activity"] or NEVER_ACTIVE, reverse=True)
     return overview
 
 
@@ -525,3 +535,20 @@ def device_detail(
         "message_count": sms_records.count_for_device(conn, device_id),
         "unassigned_count": queries.count_unassigned(conn, device_id=device_id),
     }
+
+
+# --- structural (jump-to) search --------------------------------------------
+
+
+def structural_search(conn: psycopg.Connection, query: str) -> list[dict[str, Any]]:
+    """Narrow lookup across cleartext identity columns (user display name,
+    number e164/label) to jump straight to a user or number -- not the
+    deferred full-text message-content search (that stays scoped to
+    :func:`search`, within one number, per plan §2.7). Never decrypts
+    anything and is not a read-audit event: this is structural navigation
+    over operator-supplied cleartext, the same category as ``/users`` /
+    ``/users/{id}`` (which also do not audit)."""
+    query = query.strip()
+    if not query:
+        return []
+    return queries.search_structural(conn, query)

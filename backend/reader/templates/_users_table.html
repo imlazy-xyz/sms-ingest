@@ -1,0 +1,26 @@
+<!-- Sortable users table (plan §4.3). Swapped as a whole via htmx outerHTML
+     targeting its own id, so it must always render the <table id="users-table">
+     root -- an empty state lives inside the table body, not instead of the
+     table, so the swap target always exists. -->
+<table id="users-table">
+<thead><tr>
+  <th><a href="/users?sort=name" hx-get="/users?sort=name" hx-target="#users-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'name' %}active-sort{% endif %}">Name</a></th>
+  <th>Numbers</th>
+  <th><a href="/users?sort=messages" hx-get="/users?sort=messages" hx-target="#users-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'messages' %}active-sort{% endif %}">Messages</a></th>
+  <th><a href="/users?sort=activity" hx-get="/users?sort=activity" hx-target="#users-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'activity' %}active-sort{% endif %}">Last activity</a></th>
+</tr></thead>
+<tbody>
+{% if not users %}
+<tr><td colspan="4" class="empty">No users yet.</td></tr>
+{% else %}
+{% for row in users %}
+<tr>
+  <td><a href="/users/{{ row.user.id }}">{{ row.user.display_name }}</a></td>
+  <td>{{ row.numbers | length }}</td>
+  <td>{{ row.message_count }}</td>
+  <td>{% if row.last_activity %}<span class="last-activity">{{ row.last_activity }}</span>{% else %}<span class="muted">never</span>{% endif %}</td>
+</tr>
+{% endfor %}
+{% endif %}
+</tbody>
+</table>

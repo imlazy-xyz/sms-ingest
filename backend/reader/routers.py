@@ -7,6 +7,8 @@ mounts it alongside the auth middleware. This module owns no app assembly.
 Screens (per plan §6, information architecture User -> Number -> Conversations
 -> Messages):
 
+* ``GET /search``                         -- htmx partial: structural
+  (cleartext-only) jump-to a user/number by name or e164/label
 * ``GET /users``                          -- users list
 * ``GET /users/{user_id}``                -- user detail (their numbers)
 * ``GET /numbers/{number_id}``            -- reading view: conversation list
@@ -88,38 +90,85 @@ def _not_found(what: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{what} not found")
 
 
+def _is_htmx(request: Request) -> bool:
+    """True for a sort/filter link's htmx swap request, false for the
+    initial full-page load -- lets one route serve both the full page and
+    just the table partial it swaps (plan §4.3)."""
+    return request.headers.get("hx-request") == "true"
+
+
 # --- users ---------------------------------------------------------------
+
+_USER_SORTS = {
+    "name": lambda rows: sorted(rows, key=lambda r: r["user"]["display_name"].casefold()),
+    "messages": lambda rows: sorted(rows, key=lambda r: r["message_count"], reverse=True),
+    # "activity" needs no re-sort: service.users_overview already returns
+    # most-recent-first (plan §4.1).
+    "activity": lambda rows: rows,
+}
 
 
 @router.get("/users")
-def users_list(request: Request) -> Any:
+def users_list(request: Request, sort: str = "activity") -> Any:
     settings = request.app.state.settings
     with db.connection(settings) as conn:
         overview = service.users_overview(conn)
+    overview = _USER_SORTS.get(sort, _USER_SORTS["activity"])(overview)
+    template = "_users_table.html" if _is_htmx(request) else "users.html"
     return templates.TemplateResponse(
-        request, "users.html", {"users": overview}
+        request, template, {"users": overview, "sort": sort}
     )
 
 
+@router.get("/search")
+def jump_search(request: Request, q: str = Query(default="")) -> Any:
+    """Structural, cleartext-only jump-to (plan §4.2) -- not a read/decrypt
+    event, so unlike most routes here this does not call `_audit_read`; see
+    `service.structural_search`'s docstring for why."""
+    settings = request.app.state.settings
+    with db.connection(settings) as conn:
+        results = service.structural_search(conn, q)
+    return templates.TemplateResponse(
+        request, "_jump_search_results.html", {"query": q, "results": results}
+    )
+
+
+_USER_NUMBERS_SORTS = {
+    "number": lambda rows: sorted(rows, key=lambda n: n["e164"]),  # repo already orders by e164
+    "messages": lambda rows: sorted(rows, key=lambda n: n["message_count"], reverse=True),
+}
+
+
 @router.get("/users/{user_id}")
-def user_detail(request: Request, user_id: UUID) -> Any:
+def user_detail(request: Request, user_id: UUID, sort: str = "number") -> Any:
     settings = request.app.state.settings
     with db.connection(settings) as conn:
         detail = service.user_detail(conn, user_id)
     if detail is None:
         raise _not_found("user")
+    numbers = _USER_NUMBERS_SORTS.get(sort, _USER_NUMBERS_SORTS["number"])(detail["numbers"])
+    template = "_user_numbers_table.html" if _is_htmx(request) else "user_detail.html"
     return templates.TemplateResponse(
-        request, "user_detail.html", {"user": detail["user"], "numbers": detail["numbers"]}
+        request,
+        template,
+        {"user": detail["user"], "user_id": user_id, "numbers": numbers, "sort": sort},
     )
 
 
 # --- numbers / reading view -----------------------------------------------
+
+_CONVERSATION_SORTS = {
+    # conversation_index already returns most-recent-first (plan §4.1).
+    "recency": lambda rows: rows,
+    "count": lambda rows: sorted(rows, key=lambda c: c.message_count, reverse=True),
+}
 
 
 @router.get("/numbers/{number_id}")
 def number_reading_view(
     request: Request,
     number_id: UUID,
+    sort: str = "recency",
     operator: Operator = Depends(get_operator),
 ) -> Any:
     ctx = get_app_context(request)
@@ -131,13 +180,18 @@ def number_reading_view(
         owner = users_repo.get_by_id(conn, number["user_id"])
         index = service.conversation_index(conn, ctx.field_aead, number_id)
         _audit_read(conn, operator, index.scope)
+    conversations = _CONVERSATION_SORTS.get(sort, _CONVERSATION_SORTS["recency"])(
+        index.conversations
+    )
+    template = "_conversation_list.html" if _is_htmx(request) else "number.html"
     return templates.TemplateResponse(
         request,
-        "number.html",
+        template,
         {
             "number": number,
             "owner": owner,
-            "conversations": index.conversations,
+            "conversations": conversations,
+            "sort": sort,
         },
     )
 
@@ -202,13 +256,27 @@ def number_search(
 
 # --- devices (technical view) ---------------------------------------------
 
+_DEVICE_SORTS = {
+    "label": lambda rows: rows,  # queries.list_devices already orders by label
+    "messages": lambda rows: sorted(rows, key=lambda r: r["message_count"], reverse=True),
+    "last_seen": lambda rows: sorted(
+        rows,
+        key=lambda r: r["device"]["last_seen_at"] or service.NEVER_ACTIVE,
+        reverse=True,
+    ),
+}
+
 
 @router.get("/devices")
-def devices_list(request: Request) -> Any:
+def devices_list(request: Request, sort: str = "label") -> Any:
     settings = request.app.state.settings
     with db.connection(settings) as conn:
         overview = service.devices_overview(conn)
-    return templates.TemplateResponse(request, "devices.html", {"devices": overview})
+    overview = _DEVICE_SORTS.get(sort, _DEVICE_SORTS["label"])(overview)
+    template = "_devices_table.html" if _is_htmx(request) else "devices.html"
+    return templates.TemplateResponse(
+        request, template, {"devices": overview, "sort": sort}
+    )
 
 
 @router.get("/devices/{device_id}")

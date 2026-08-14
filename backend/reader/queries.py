@@ -47,6 +47,47 @@ def count_by_owner_number(conn: psycopg.Connection, number_id: UUID | str) -> in
     return int(row["n"])
 
 
+def last_activity_by_owner_user(conn: psycopg.Connection, user_id: UUID | str) -> Any:
+    """Most recent ``sms_received_at`` across every number owned by this user,
+    or ``None`` if they have no messages yet. ``sms_received_at`` is a plain
+    (unencrypted) column, so this is a cheap indexed aggregate -- no decrypt
+    needed."""
+    row = conn.execute(
+        """
+        select max(r.sms_received_at) as last_activity
+        from sms_records r
+        join numbers n on n.id = r.owner_number_id
+        where n.user_id = %s
+        """,
+        (user_id,),
+    ).fetchone()
+    return row["last_activity"]
+
+
+def search_structural(conn: psycopg.Connection, query: str) -> list[dict[str, Any]]:
+    """Narrow, structural lookup across cleartext identity columns only --
+    ``users.display_name``, ``numbers.e164``, ``numbers.label``. Never touches
+    ``sender_enc``/``body_enc``; this is jump-to-the-right-record navigation,
+    not the (deliberately deferred) full-text message search."""
+    needle = f"%{query}%"
+    return conn.execute(
+        """
+        select 'user' as kind, u.id as user_id, u.display_name,
+               null::uuid as number_id, null as e164, null as label
+        from users u
+        where u.display_name ilike %s
+        union all
+        select 'number' as kind, n.user_id, u.display_name,
+               n.id as number_id, n.e164, n.label
+        from numbers n
+        join users u on u.id = n.user_id
+        where n.e164 ilike %s or n.label ilike %s
+        order by display_name
+        """,
+        (needle, needle, needle),
+    ).fetchall()
+
+
 def count_by_owner_user(conn: psycopg.Connection, user_id: UUID | str) -> int:
     row = conn.execute(
         """
