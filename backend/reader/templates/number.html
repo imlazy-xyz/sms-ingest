@@ -30,7 +30,7 @@
            hx-swap="innerHTML">
           <strong>{{ c.counterparty }}</strong>
           <div class="muted">{{ c.preview }}</div>
-          <div class="muted">{{ c.message_count }} messages &middot; {{ c.last_received_at }}</div>
+          <div class="muted">{{ c.message_count }} messages &middot; <span class="last-activity">{{ c.last_received_at }}</span></div>
         </a>
       </li>
     {% endfor %}

@@ -115,6 +115,71 @@ def test_user_detail_404_for_unknown_user(reader_client):
     assert resp.status_code == 404
 
 
+def test_users_list_sorts_by_last_activity_most_recent_first(
+    reader_client, pg_conn, seeded_number
+):
+    """admin-reader-ui-v2-plan §4.1: '/users gains a last activity column,
+    sorted most-recent-first by default.' seeded_number's Alice has messages
+    (latest 2026-07-01T13:00:00Z); a freshly-created user with none must sort
+    after her, not before/randomly."""
+    users_repo.insert(pg_conn, display_name="Bob (no messages yet)")
+    resp = reader_client.get("/users")
+    assert resp.status_code == 200
+    assert resp.text.index("Alice") < resp.text.index("Bob (no messages yet)")
+    assert "never" in resp.text  # Bob's last-activity cell
+
+
+# --- structural jump-to search (v2 WS2 §4.2) --------------------------------
+
+
+def test_jump_search_finds_user_by_display_name(reader_client, seeded_number):
+    resp = reader_client.get("/search", params={"q": "Alic"})
+    assert resp.status_code == 200
+    assert f"/users/{seeded_number['user']['id']}" in resp.text
+    assert "Alice" in resp.text
+
+
+def test_jump_search_finds_number_by_e164_and_label(reader_client, seeded_number):
+    number_id = seeded_number["number"]["id"]
+    resp = reader_client.get("/search", params={"q": "work"})  # matches the label
+    assert resp.status_code == 200
+    assert f"/numbers/{number_id}" in resp.text
+    assert "+15551234567" in resp.text
+
+
+def test_jump_search_never_matches_decrypted_message_content(
+    reader_client, pg_conn, ctx, device, make_request, make_message, seeded_number
+):
+    """Scope guard (plan §4.2/§2): this is structural cleartext navigation
+    only, never the deferred full-text content search. Seed a message whose
+    body contains a token that appears nowhere in any user/number identity
+    column, and prove searching for it finds nothing -- a behavioral check on
+    the actual query, not just an assertion about the SQL string."""
+    unique_token = "xyzzyPlughUnique12345"
+    ingestion.ingest_batch(
+        pg_conn,
+        ctx,
+        device,
+        make_request(
+            [make_message(dedupe_id="content-only", sender="+15557778888",
+                          body=f"a message that mentions {unique_token} in its body")],
+            client_batch_id="content-search-batch",
+        ),
+    )
+    resp = reader_client.get("/search", params={"q": unique_token})
+    assert resp.status_code == 200
+    assert "No match" in resp.text  # the message body was never searched
+    assert "<li>" not in resp.text  # no result item rendered
+
+
+def test_jump_search_does_not_audit(reader_client, seeded_number, pg_conn):
+    """Structural navigation over operator-supplied cleartext, same category
+    as /users and /users/{id} (neither of which audits) -- not a content
+    read."""
+    reader_client.get("/search", params={"q": "Alice"})
+    assert _audit_rows(pg_conn) == []
+
+
 # --- reading view / conversations ------------------------------------------
 
 

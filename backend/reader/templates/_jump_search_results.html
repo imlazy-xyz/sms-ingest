@@ -1,0 +1,19 @@
+<!-- Structural jump-to results (plan §4.2): matches on user display name or
+     number e164/label, never on decrypted message content. Rendered into
+     #jump-search-results, positioned under the header search box. -->
+{% if query.strip() and not results %}
+<p class="empty">No match for "{{ query }}".</p>
+{% elif results %}
+<ul>
+{% for r in results %}
+  <li>
+  {% if r.kind == "user" %}
+    <a href="/users/{{ r.user_id }}">{{ r.display_name }}</a>
+  {% else %}
+    <a href="/numbers/{{ r.number_id }}">{{ r.e164 }}{% if r.label %} <span class="muted">({{ r.label }})</span>{% endif %}</a>
+    <span class="muted">&middot; {{ r.display_name }}</span>
+  {% endif %}
+  </li>
+{% endfor %}
+</ul>
+{% endif %}

@@ -7,6 +7,8 @@ mounts it alongside the auth middleware. This module owns no app assembly.
 Screens (per plan §6, information architecture User -> Number -> Conversations
 -> Messages):
 
+* ``GET /search``                         -- htmx partial: structural
+  (cleartext-only) jump-to a user/number by name or e164/label
 * ``GET /users``                          -- users list
 * ``GET /users/{user_id}``                -- user detail (their numbers)
 * ``GET /numbers/{number_id}``            -- reading view: conversation list
@@ -98,6 +100,19 @@ def users_list(request: Request) -> Any:
         overview = service.users_overview(conn)
     return templates.TemplateResponse(
         request, "users.html", {"users": overview}
+    )
+
+
+@router.get("/search")
+def jump_search(request: Request, q: str = Query(default="")) -> Any:
+    """Structural, cleartext-only jump-to (plan §4.2) -- not a read/decrypt
+    event, so unlike most routes here this does not call `_audit_read`; see
+    `service.structural_search`'s docstring for why."""
+    settings = request.app.state.settings
+    with db.connection(settings) as conn:
+        results = service.structural_search(conn, q)
+    return templates.TemplateResponse(
+        request, "_jump_search_results.html", {"query": q, "results": results}
     )
 
 
