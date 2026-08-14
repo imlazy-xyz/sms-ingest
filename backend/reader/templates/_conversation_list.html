@@ -4,9 +4,9 @@
 <div id="conversation-list-inner">
   <div class="list-sort muted">
     Sort:
-    <a href="/numbers/{{ number.id }}?sort=recency" hx-get="/numbers/{{ number.id }}?sort=recency" hx-target="#conversation-list-inner" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'recency' %}active-sort{% endif %}">Recent</a>
+    <a href="/numbers/{{ number.id }}?sort=recency" hx-get="/numbers/{{ number.id }}?sort=recency" hx-target="#conversation-list-inner" hx-swap="outerHTML" hx-indicator="#conversation-list-inner" hx-push-url="true" class="{% if sort == 'recency' %}active-sort{% endif %}">Recent</a>
     &middot;
-    <a href="/numbers/{{ number.id }}?sort=count" hx-get="/numbers/{{ number.id }}?sort=count" hx-target="#conversation-list-inner" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'count' %}active-sort{% endif %}">Count</a>
+    <a href="/numbers/{{ number.id }}?sort=count" hx-get="/numbers/{{ number.id }}?sort=count" hx-target="#conversation-list-inner" hx-swap="outerHTML" hx-indicator="#conversation-list-inner" hx-push-url="true" class="{% if sort == 'count' %}active-sort{% endif %}">Count</a>
   </div>
   {% if not conversations %}
   <p class="empty">No conversations yet.</p>
@@ -17,10 +17,11 @@
       <a href="#"
          hx-get="/numbers/{{ number.id }}/thread?counterparty={{ c.counterparty | urlencode }}"
          hx-target="#thread-pane"
+         hx-indicator="#thread-pane"
          hx-swap="innerHTML">
         <strong>{{ c.counterparty }}</strong>
         <div class="muted">{{ c.preview }}</div>
-        <div class="muted">{{ c.message_count }} messages &middot; <span class="last-activity">{{ c.last_received_at }}</span></div>
+        <div class="muted">{{ c.message_count }} messages &middot; <span class="last-activity mono{% if is_recent(c.last_received_at) %} recent{% endif %}">{{ c.last_received_at }}</span></div>
       </a>
     </li>
   {% endfor %}

@@ -9,7 +9,7 @@
 {% else %}
 {% for m in results.messages %}
 <div class="message">
-  <div class="meta">{{ m.sender }} &middot; {{ m.received_at }} &middot; device {{ m.device_id }}</div>
+  <div class="meta">{{ m.sender }} &middot; <span class="mono">{{ m.received_at }}</span> &middot; device <span class="mono">{{ m.device_id }}</span></div>
   <div>{{ m.body }}</div>
 </div>
 {% endfor %}

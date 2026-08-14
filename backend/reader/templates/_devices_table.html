@@ -1,12 +1,12 @@
 <!-- Sortable devices table (plan §4.3). Same swap-by-id-as-a-whole pattern. -->
 <table id="devices-table">
 <thead><tr>
-  <th><a href="/devices?sort=label" hx-get="/devices?sort=label" hx-target="#devices-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'label' %}active-sort{% endif %}">Label</a></th>
+  <th><a href="/devices?sort=label" hx-get="/devices?sort=label" hx-target="#devices-table" hx-swap="outerHTML" hx-indicator="#devices-table" hx-push-url="true" class="{% if sort == 'label' %}active-sort{% endif %}">Label</a></th>
   <th>Status</th>
   <th>SIMs assigned</th>
-  <th><a href="/devices?sort=messages" hx-get="/devices?sort=messages" hx-target="#devices-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'messages' %}active-sort{% endif %}">Messages</a></th>
+  <th><a href="/devices?sort=messages" hx-get="/devices?sort=messages" hx-target="#devices-table" hx-swap="outerHTML" hx-indicator="#devices-table" hx-push-url="true" class="{% if sort == 'messages' %}active-sort{% endif %}">Messages</a></th>
   <th>Unassigned</th>
-  <th><a href="/devices?sort=last_seen" hx-get="/devices?sort=last_seen" hx-target="#devices-table" hx-swap="outerHTML" hx-push-url="true" class="{% if sort == 'last_seen' %}active-sort{% endif %}">Last seen</a></th>
+  <th><a href="/devices?sort=last_seen" hx-get="/devices?sort=last_seen" hx-target="#devices-table" hx-swap="outerHTML" hx-indicator="#devices-table" hx-push-url="true" class="{% if sort == 'last_seen' %}active-sort{% endif %}">Last seen</a></th>
 </tr></thead>
 <tbody>
 {% if not devices %}
@@ -15,11 +15,11 @@
 {% for row in devices %}
 <tr>
   <td><a href="/devices/{{ row.device.id }}">{{ row.device.label }}</a></td>
-  <td><span class="badge">{{ row.device.status }}</span></td>
+  <td><span class="badge" data-status="{{ row.device.status }}">{{ row.device.status }}</span></td>
   <td>{{ row.assignments | length }}</td>
   <td>{{ row.message_count }}</td>
   <td>{% if row.unassigned_count %}<a href="/unassigned?device_id={{ row.device.id }}">{{ row.unassigned_count }}</a>{% else %}0{% endif %}</td>
-  <td>{% if row.device.last_seen_at %}<span class="last-activity">{{ row.device.last_seen_at }}</span>{% else %}{% endif %}</td>
+  <td>{% if row.device.last_seen_at %}<span class="last-activity mono{% if is_recent(row.device.last_seen_at) %} recent{% endif %}">{{ row.device.last_seen_at }}</span>{% else %}<span class="muted">never</span>{% endif %}</td>
 </tr>
 {% endfor %}
 {% endif %}

@@ -4,7 +4,7 @@
 <p class="muted">
   <a href="/users/{{ owner.id }}">&larr; {{ owner.display_name }}</a>
 </p>
-<h1>{{ number.e164 }}{% if number.label %} <span class="muted">({{ number.label }})</span>{% endif %}</h1>
+<h1><span class="mono">{{ number.e164 }}</span>{% if number.label %} <span class="muted">({{ number.label }})</span>{% endif %}</h1>
 <div class="search-box">
   <input
     type="search"
@@ -13,6 +13,7 @@
     hx-get="/numbers/{{ number.id }}/search"
     hx-trigger="input changed delay:400ms, search"
     hx-target="#thread-pane"
+    hx-indicator="#thread-pane"
     hx-swap="innerHTML">
   <span class="scope-label">Scope: this number only. Clear the box to return to the conversation list.</span>
 </div>

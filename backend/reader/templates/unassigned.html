@@ -27,9 +27,9 @@
 <tbody>
 {% for m in page.messages %}
 <tr>
-  <td>{{ m.received_at }}</td>
-  <td><a href="/devices/{{ m.device_id }}">{{ m.device_id }}</a></td>
-  <td>{{ m.sub_id if m.sub_id is not none else "(none captured)" }}</td>
+  <td class="mono">{{ m.received_at }}</td>
+  <td class="mono"><a href="/devices/{{ m.device_id }}">{{ m.device_id }}</a></td>
+  <td class="mono">{{ m.sub_id if m.sub_id is not none else "(none captured)" }}</td>
   <td>{{ m.sender }}</td>
   <td>{{ m.preview }}</td>
 </tr>

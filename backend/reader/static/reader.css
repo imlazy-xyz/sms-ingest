@@ -1,0 +1,302 @@
+/* SMS Ingest Admin Reader — visual design pass (v2 §5).
+   "Field log": a data-ledger look for a single-operator triage tool, not a
+   product UI. Two intentional accents, not one: ink (structure/links) and
+   signal amber (recency/what's-new) — the plan's §4.1 recency signal and
+   this palette are the same idea in two layers.
+   Data-shaped values (timestamps, e164 numbers, ids) get the mono face;
+   everything else gets the grotesk. That's a real distinction, not decor. */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f2f3f5;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --ink: #161a22;
+  --muted: #5b6472;
+  --border: #d9dce2;
+  --border-strong: #b9bfc9;
+  --link: #1b2a4a;
+  --link-hover: #0f1a30;
+  --signal: #b3651a;
+  --signal-bg: #f6e3cf;
+  --danger: #9a3b3b;
+  --danger-bg: #f5dede;
+  --ok: #2f6b4f;
+  --ok-bg: #dcefe3;
+  --focus: #3568ff;
+  --shadow: 0 1px 2px rgba(20, 22, 30, 0.06), 0 1px 1px rgba(20, 22, 30, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --surface: #1b1f26;
+    --surface-raised: #21262f;
+    --ink: #e8eaee;
+    --muted: #98a1b0;
+    --border: #2b3038;
+    --border-strong: #3a4049;
+    --link: #8fadff;
+    --link-hover: #b7c8ff;
+    --signal: #e3a056;
+    --signal-bg: #3a2a17;
+    --danger: #e28a8a;
+    --danger-bg: #3a2323;
+    --ok: #7fcba6;
+    --ok-bg: #1f3327;
+    --focus: #7fa3ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 15px; }
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+h1, h2, h3 {
+  font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.6rem;
+}
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.1rem; }
+
+a { color: var(--link); }
+a:hover { color: var(--link-hover); }
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.mono, .timestamp, .e164, td.id-col {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.88em;
+  letter-spacing: -0.01em;
+}
+
+header {
+  padding: 0.9rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+header > a {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-decoration: none;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+nav { display: flex; gap: 0.25rem; }
+nav a {
+  text-decoration: none;
+  color: var(--muted);
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+nav a:hover { background: var(--bg); color: var(--ink); }
+
+main { padding: 1.5rem; max-width: 1180px; margin: 0 auto; }
+
+.muted { color: var(--muted); font-size: 0.9em; }
+
+table { border-collapse: collapse; width: 100%; background: var(--surface); }
+th, td {
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-strong);
+}
+tbody tr:hover { background: var(--bg); }
+
+.empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95em;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+.badge[data-status="active"] { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.badge[data-status="revoked"] { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+
+/* Recency signal (v2 §4.1's functional feature, styled here per §5's note
+   that it "folds in" once functional). A quiet dot, not a badge — mirrors
+   how a pager light reads at a glance without shouting. */
+.last-activity {
+  font-weight: 600;
+  position: relative;
+  padding-left: 0.95rem;
+}
+.last-activity::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  translate: 0 -50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.last-activity.recent { color: var(--signal); }
+.last-activity.recent::before {
+  background: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-bg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .last-activity.recent::before { animation: signal-in 0.6s ease-out; }
+}
+@keyframes signal-in {
+  from { box-shadow: 0 0 0 0 var(--signal-bg); }
+  to { box-shadow: 0 0 0 3px var(--signal-bg); }
+}
+
+/* Two-pane reading view */
+.reading-view {
+  display: flex;
+  gap: 0;
+  height: calc(100vh - 190px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.conversation-list { flex: 0 0 320px; overflow-y: auto; border-right: 1px solid var(--border); }
+.conversation-list ul { list-style: none; margin: 0; padding: 0; }
+.conversation-list li a {
+  display: block;
+  padding: 0.7rem 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid var(--border);
+}
+.conversation-list li a strong { font-family: "Space Grotesk", sans-serif; font-weight: 600; }
+.conversation-list li a:hover { background: var(--bg); }
+.conversation-list li a.active { background: var(--signal-bg); border-left: 3px solid var(--signal); padding-left: calc(0.9rem - 3px); }
+.thread-pane { flex: 1; overflow-y: auto; padding: 0 0.25rem; }
+.thread-pane h2 { padding: 1rem 1rem 0; }
+
+.message { padding: 0.65rem 1rem; border-bottom: 1px solid var(--border); }
+.message .meta { font-size: 0.78em; color: var(--muted); display: flex; gap: 0.5rem; align-items: baseline; }
+.message .from-label {
+  font-weight: 600;
+  color: var(--ink);
+  opacity: 1;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.02em;
+}
+
+.list-sort { margin-bottom: 0.75rem; font-size: 0.88em; }
+.list-sort a { text-decoration: none; color: var(--muted); padding: 0.15rem 0; }
+.list-sort a.active-sort { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+th a { text-decoration: none; color: inherit; }
+th a.active-sort { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
+.search-box { margin-bottom: 1rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.search-box input { flex: 0 1 320px; }
+.scope-label { font-size: 0.85em; color: var(--muted); }
+
+input[type="search"], input[type="text"], select {
+  font-family: inherit;
+  font-size: 0.92rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+input[type="search"]:focus, select:focus { border-color: var(--focus); }
+
+.jump-search { position: relative; margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+.jump-search input { width: 17rem; }
+.jump-search-results {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 17rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(20, 22, 30, 0.12);
+}
+.jump-search-results:empty { display: none; }
+.jump-search-results ul { list-style: none; margin: 0; padding: 0.35rem; }
+.jump-search-results li { padding: 0.4rem 0.6rem; border-radius: 6px; }
+.jump-search-results li:hover { background: var(--bg); }
+.jump-search-results li a { text-decoration: none; }
+.jump-search-results .empty { padding: 0.7rem; text-align: left; }
+
+button {
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover { background: var(--bg); }
+
+/* htmx loading state — the plan calls out swaps landing with no transition. */
+.htmx-indicator { opacity: 0; transition: opacity 0.15s ease; }
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator { opacity: 1; }
+table.htmx-request, #conversation-list-inner.htmx-request, .thread-pane.htmx-request {
+  opacity: 0.6;
+  transition: opacity 0.1s ease 0.1s;
+}
+.spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--signal);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .spinner { animation: spin 0.7s linear infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  table.htmx-request, #conversation-list-inner.htmx-request, .thread-pane.htmx-request { transition: none; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }

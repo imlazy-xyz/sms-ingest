@@ -5,48 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}SMS Ingest — Admin Reader{% endblock %}</title>
 <script src="/static/htmx.min.js"></script>
-<style>
-  :root { color-scheme: light dark; }
-  body { font-family: system-ui, sans-serif; margin: 0; }
-  header { padding: 0.75rem 1rem; border-bottom: 1px solid #8888; display: flex; gap: 1rem; align-items: baseline; }
-  header a { text-decoration: none; font-weight: 600; }
-  nav a { margin-right: 1rem; }
-  main { padding: 1rem; }
-  .muted { opacity: 0.65; font-size: 0.9em; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #8884; }
-  .empty { padding: 2rem; text-align: center; opacity: 0.6; }
-  .badge { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 0.3rem; background: #8882; font-size: 0.8em; }
-  .reading-view { display: flex; gap: 1rem; height: calc(100vh - 140px); }
-  .conversation-list { flex: 0 0 320px; overflow-y: auto; border-right: 1px solid #8884; }
-  .conversation-list ul { list-style: none; margin: 0; padding: 0; }
-  .conversation-list li a { display: block; padding: 0.6rem; text-decoration: none; color: inherit; border-bottom: 1px solid #8882; }
-  .conversation-list li a:hover, .conversation-list li a.active { background: #8881; }
-  .thread-pane { flex: 1; overflow-y: auto; }
-  .message { padding: 0.5rem 0.75rem; border-bottom: 1px solid #8882; }
-  .message .meta { font-size: 0.8em; opacity: 0.6; }
-  .message .from-label { font-weight: 600; opacity: 1; }
-  .search-box { margin-bottom: 0.75rem; }
-  .scope-label { font-size: 0.85em; opacity: 0.7; }
-  .last-activity { font-weight: 600; }
-  .jump-search { position: relative; margin-left: auto; }
-  .jump-search input { width: 16rem; }
-  .jump-search-results { position: absolute; right: 0; top: 100%; z-index: 10; background: Canvas; border: 1px solid #8888; min-width: 16rem; max-height: 20rem; overflow-y: auto; }
-  .jump-search-results:empty { display: none; }
-  .jump-search-results ul { list-style: none; margin: 0; padding: 0.25rem 0; }
-  .jump-search-results li { padding: 0.35rem 0.6rem; }
-  .jump-search-results li a { text-decoration: none; }
-  .jump-search-results .empty { padding: 0.6rem; text-align: left; }
-  th a { text-decoration: none; color: inherit; }
-  th a.active-sort { text-decoration: underline; }
-  .list-sort { margin-bottom: 0.5rem; }
-  .list-sort a { text-decoration: none; }
-  .list-sort a.active-sort { text-decoration: underline; font-weight: 600; }
-</style>
+<link rel="stylesheet" href="/static/reader.css">
 </head>
 <body>
 <header>
-  <a href="/users">SMS Ingest Admin</a>
+  <a href="/users">SMS Ingest</a>
   <nav>
     <a href="/users">Users</a>
     <a href="/devices">Devices</a>
@@ -61,7 +24,9 @@
       hx-get="/search"
       hx-trigger="input changed delay:300ms, search"
       hx-target="#jump-search-results"
+      hx-indicator="#jump-search-spinner"
       hx-swap="innerHTML">
+    <span id="jump-search-spinner" class="spinner htmx-indicator"></span>
     <div id="jump-search-results" class="jump-search-results"></div>
   </div>
 </header>
