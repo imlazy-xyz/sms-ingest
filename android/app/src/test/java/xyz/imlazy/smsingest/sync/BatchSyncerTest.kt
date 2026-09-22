@@ -269,6 +269,25 @@ class BatchSyncerTest {
     }
 
     @Test
+    fun `clears a previously recorded error and retry count once a batch finally succeeds`() = runTest {
+        server.enqueue(MockResponse().setBody(acceptedBody()))
+        val pendingBatchDao = FakePendingBatchDao(
+            listOf(
+                pendingBatch("b1", listOf(sampleMessage("m1")))
+                    .copy(retryCount = 3, lastError = "UnknownHostException"),
+            ),
+        )
+
+        val result = syncer(pendingBatchDao).sync()
+
+        assertEquals(SyncResult.SUCCESS, result)
+        val batch = pendingBatchDao.rows.getValue("b1")
+        assertEquals(PendingBatchEntity.STATE_SENT, batch.state)
+        assertEquals(0, batch.retryCount)
+        assertEquals(null, batch.lastError)
+    }
+
+    @Test
     fun `processes remaining batches even after one fails`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
         server.enqueue(MockResponse().setBody(acceptedBody()))

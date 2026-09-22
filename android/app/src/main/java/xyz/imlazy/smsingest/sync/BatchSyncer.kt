@@ -130,7 +130,16 @@ class BatchSyncer(
             val response = ingestApi.uploadBatch(request)
             recordUploadedDedupeIds(messages, response)
             pendingBatchDao.update(
-                batch.copy(state = PendingBatchEntity.STATE_SENT, updatedAtEpochMillis = System.currentTimeMillis()),
+                batch.copy(
+                    state = PendingBatchEntity.STATE_SENT,
+                    // Clear any error/retry count left over from an earlier failed
+                    // attempt on this same batch, so the debug status panel's "Last
+                    // error" reflects whether sync is *currently* failing, not
+                    // whatever it last failed with before it recovered.
+                    retryCount = 0,
+                    lastError = null,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                ),
             )
             // batchId is a random client-generated UUID, message count is a
             // size — neither is SMS content, sender data, or key material.
